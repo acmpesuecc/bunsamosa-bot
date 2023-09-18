@@ -50,6 +50,7 @@ func main() {
 	mux.HandleFunc("/ping", handlers.PingHandler)
 	mux.HandleFunc("/lb_all", handlers.Leaderboard_allrecords)
 	mux.HandleFunc("/leaderboard", handlers.Leaderboard_materialized)
+	mux.HandleFunc("/records", handlers.Leaderboard_userspecific)
 	log.Println("[INIT] Registered all routes")
 
 	handler := cors.Default().Handler(mux)

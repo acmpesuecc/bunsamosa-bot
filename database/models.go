@@ -160,17 +160,40 @@ func (manager *DBManager) Get_all_records() ([]ContributorRecordModel, error) {
 
 }
 
+func (manager *DBManager) Get_user_records(contributor string) ([]ContributorRecordModel, error) {
+	query := `select contributor_name, maintainer_name, pullreq_url, (SELECT points_allotted FROM contributor_record_models where t1.pullreq_url = pullreq_url order by created_at desc limit 1) as points_allotted
+		from contributor_record_models as t1
+		where contributor_name = ?
+		GROUP by pullreq_url, contributor_name;`
+
+	// Declare the array of all records
+	var records []ContributorRecordModel
+
+	// Fetch from the database
+	log.Println("[DBMANAGER|USER-SPECIFIC] Fetching Records for user:", contributor)
+
+	fetch_result := manager.db.Raw(query, contributor).Scan(&records)
+
+	if fetch_result.Error != nil {
+		log.Println("[ERROR][DBMANAGER|USER-SPECIFIC] Could not fetch records for", contributor, " ->", fetch_result.Error)
+		return nil, fetch_result.Error
+	} else {
+		log.Println("[DBMANAGER|USER-SPECIFIC] Successfully Fetched all records for user:", contributor)
+		return records, nil
+	}
+}
+
 func (manager *DBManager) Get_leaderboard() ([]ContributorModel, error) {
 
 	leaderboard_query := `
 	SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
-		select 
+		select
 			contributor_name, (SELECT points_allotted FROM contributor_record_models where t1.pullreq_url = pullreq_url order by created_at desc limit 1) as latest_points
 		from contributor_record_models as t1
 		GROUP by pullreq_url, contributor_name
-	) GROUP BY contributor_name;	
+	) GROUP BY contributor_name;
 	`
-
+	
 	// Declare the array of all records
 	var records []ContributorModel
 

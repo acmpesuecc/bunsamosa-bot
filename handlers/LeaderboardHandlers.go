@@ -46,7 +46,14 @@ func Leaderboard_materialized(response http.ResponseWriter, request *http.Reques
 }
 
 func Leaderboard_userspecific(response http.ResponseWriter, request *http.Request) {
-	records, err := globals.Myapp.Leaderboard_GetAllRecords()
+	queryParams := request.URL.Query()
+	user := queryParams.Get("user")
+	if user == "" {
+		http.Error(response, "user param is required", http.StatusBadRequest)
+		return
+	}
+
+	records, err := globals.Myapp.Leaderboard_GetUserRecords(user)
 	if err != nil {
 		log.Println("[ERROR][LEADERBOARD_HANDLER][USERSPECIFIC] Could not get all records ->", err)
 		response.WriteHeader(http.StatusInternalServerError)
