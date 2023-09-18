@@ -1,3 +1,4 @@
 secrets*.yaml
 bunsamosa-bot*
 *.pem
+.idea
