@@ -161,10 +161,14 @@ func (manager *DBManager) Get_all_records() ([]ContributorRecordModel, error) {
 }
 
 func (manager *DBManager) Get_user_records(contributor string) ([]ContributorRecordModel, error) {
-	query := `select contributor_name, maintainer_name, pullreq_url, (SELECT points_allotted FROM contributor_record_models where t1.pullreq_url = pullreq_url order by created_at desc limit 1) as points_allotted
-		from contributor_record_models as t1
-		where contributor_name = ?
-		GROUP by pullreq_url, contributor_name;`
+	query := `SELECT crm.contributor_name, crm.maintainer_name, crm.pullreq_url, crm.points_allotted
+FROM contributor_record_models as crm
+         JOIN (
+    SELECT MAX(id) as max_id
+    FROM contributor_record_models
+    WHERE contributor_name = ?
+    GROUP BY pullreq_url
+) AS subq ON crm.id = subq.max_id;`
 
 	// Declare the array of all records
 	var records []ContributorRecordModel
@@ -193,7 +197,7 @@ func (manager *DBManager) Get_leaderboard() ([]ContributorModel, error) {
 		GROUP by pullreq_url, contributor_name
 	) GROUP BY contributor_name;
 	`
-	
+
 	// Declare the array of all records
 	var records []ContributorModel
 
