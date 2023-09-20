@@ -135,6 +135,24 @@ func (manager *DBManager) AssignBounty(
 			}
 		*/
 
+		log.Println("[DBMANAGER][LEADERBOARD] Beginning Recompute of ContributorModel")
+
+		//Recompute ContributorModel Table
+		lb_query := `DELETE FROM contributor_models;INSERT INTO contributor_models (Name, Current_bounty)
+SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
+   select
+       contributor_name, (SELECT points_allotted FROM contributor_record_models where t1.pullreq_url = pullreq_url order by created_at desc limit 1) as latest_points
+   from contributor_record_models as t1
+   GROUP by pullreq_url, contributor_name
+) GROUP BY contributor_name;`
+
+		result = tx.Exec(lb_query)
+		if result.Error != nil {
+			log.Println("[ERROR][DBMANAGER][LEADERBOARD] Could Not Recompute ContributorModel ->", result.Error)
+			return result.Error
+		} else {
+			log.Println("[DBMANAGER][LEADERBOARD] Successfully Recomputed ContributorModel")
+		}
 		// commit the transaction
 		return nil
 	})
@@ -214,4 +232,20 @@ func (manager *DBManager) Get_leaderboard() ([]ContributorModel, error) {
 		return records, nil
 	}
 
+}
+
+func (manager *DBManager) Get_leaderboard_mat() ([]ContributorModel, error) {
+	// Declare the array of all records
+	var records []ContributorModel
+
+	// Fetch from the database
+	log.Println("[DBMANAGER|MUX-LB] Fetching All Records")
+	fetch_result := manager.db.Find(&records)
+	if fetch_result.Error != nil {
+		log.Println("[ERROR][DBMANAGER|MUX-LB] Could not fetch all records ->", fetch_result.Error)
+		return nil, fetch_result.Error
+	} else {
+		log.Println("[DBMANAGER|MUX-LB] Successfully Fetched all records")
+		return records, nil
+	}
 }
