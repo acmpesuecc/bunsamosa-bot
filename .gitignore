@@ -4,3 +4,4 @@ bunsamosa-bot*
 .idea
 *.db
 test.db
+.DS_Store
