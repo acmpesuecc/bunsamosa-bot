@@ -159,7 +159,7 @@ func (a *App) AssignBountyPoints() ([]database.ContributorRecordModel, error) {
 
 }
 
-func (a *App) Leaderboard_GetMaterialized() ([]database.ContributorModel, error) {
+func (a *App) Leaderboard_GetNonMaterialized() ([]database.ContributorModel, error) {
 
 	// Get a materialized view of the leaderboard
 	var leaderboard []database.ContributorModel
@@ -175,7 +175,36 @@ func (a *App) Leaderboard_GetMaterialized() ([]database.ContributorModel, error)
 
 }
 
-func (a *App) Leaderboard_GetUserRecord(user string) {
+func (a *App) Leaderboard_GetMaterialized() ([]database.ContributorModel, error) {
+
+	// Get a materialized view of the leaderboard
+	var leaderboard []database.ContributorModel
+
+	records, err := a.Dbmanager.Get_leaderboard_mat()
+	if err != nil {
+		return nil, err
+	} else {
+		leaderboard = records
+	}
+
+	return leaderboard, nil
+
+}
+
+func (a *App) Leaderboard_GetUserRecords(user string) ([]database.ContributorRecordModel, error) {
 	// Take a user's username and return their records
-	// TODO
+
+	// Get all the time series data present so far
+	// from the database
+	var all_records []database.ContributorRecordModel
+
+	// Use the database method
+	records, err := a.Dbmanager.Get_user_records(user)
+	if err != nil {
+		return nil, err
+	} else {
+		all_records = records
+	}
+
+	return all_records, nil
 }

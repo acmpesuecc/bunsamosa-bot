@@ -26,6 +26,25 @@ func Leaderboard_allrecords(response http.ResponseWriter, request *http.Request)
 	}
 }
 
+func Leaderboard_nonmaterialized(response http.ResponseWriter, request *http.Request) {
+
+	records, err := globals.Myapp.Leaderboard_GetNonMaterialized()
+	if err != nil {
+		log.Println("[ERROR][LEADERBOARD_HANDLER][NOT-MATERIALIZED] Could not get all records ->", err)
+		response.WriteHeader(http.StatusInternalServerError)
+	} else {
+		// Marshal into JSON
+		json_string, err := json.Marshal(records)
+		if err != nil {
+			log.Println("[ERROR][LEADERBOARD_HANDLER][NOT-MATERIALIZED] Failed to Marshal records into JSON ->", err)
+			response.WriteHeader(http.StatusInternalServerError)
+		} else {
+			response.Header().Set("Content-Type", "application/json")
+			response.Write(json_string)
+		}
+	}
+}
+
 func Leaderboard_materialized(response http.ResponseWriter, request *http.Request) {
 
 	records, err := globals.Myapp.Leaderboard_GetMaterialized()
@@ -46,7 +65,14 @@ func Leaderboard_materialized(response http.ResponseWriter, request *http.Reques
 }
 
 func Leaderboard_userspecific(response http.ResponseWriter, request *http.Request) {
-	records, err := globals.Myapp.Leaderboard_GetAllRecords()
+	queryParams := request.URL.Query()
+	user := queryParams.Get("user")
+	if user == "" {
+		http.Error(response, "user param is required", http.StatusBadRequest)
+		return
+	}
+
+	records, err := globals.Myapp.Leaderboard_GetUserRecords(user)
 	if err != nil {
 		log.Println("[ERROR][LEADERBOARD_HANDLER][USERSPECIFIC] Could not get all records ->", err)
 		response.WriteHeader(http.StatusInternalServerError)

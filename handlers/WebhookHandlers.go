@@ -82,6 +82,7 @@ func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 	// TODO Move this to the app
 	maintainers := []string{
 		"anirudhrowjee",
+		"smuzzy-waiii",
 		"charan2308",
 		"suhaskv1",
 		"mohamed-ayaan358",

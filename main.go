@@ -46,10 +46,12 @@ func main() {
 	// with the webhook secret from the YAML Parsed into the app in scope
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/Github", handlers.WebhookHandler)
+	mux.HandleFunc("/", handlers.WebhookHandler)
 	mux.HandleFunc("/ping", handlers.PingHandler)
 	mux.HandleFunc("/lb_all", handlers.Leaderboard_allrecords)
-	mux.HandleFunc("/leaderboard", handlers.Leaderboard_materialized)
+	mux.HandleFunc("/leaderboard", handlers.Leaderboard_nonmaterialized)
+	mux.HandleFunc("/leaderboard_mat", handlers.Leaderboard_materialized)
+	mux.HandleFunc("/records", handlers.Leaderboard_userspecific)
 	log.Println("[INIT] Registered all routes")
 
 	handler := cors.Default().Handler(mux)
