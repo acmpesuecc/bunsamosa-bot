@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -21,6 +23,27 @@ func contains(s []string, str string) bool {
 		}
 	}
 	return false
+}
+
+// function to validate if PR bounty comment is in the correct format
+// and get bounty points
+func parseBountyPoints(comment string) (int, bool) {
+	comment = strings.TrimLeft(comment, " ")
+
+	pattern := `^!bounty\s+(\d+)`
+	// Compile the regular expression
+	regex := regexp.MustCompile(pattern)
+	// Use FindStringSubmatch to search for the pattern in the text
+	matches := regex.FindStringSubmatch(comment)
+	//fmt.Println(matches)
+	if len(matches) > 0 {
+		// Extract the bounty number from the captured group
+		bounty := matches[1]
+		bounty_num, err := strconv.Atoi(bounty)
+		return bounty_num, err == nil
+	} else {
+		return -1, false
+	}
 }
 
 // Function to check if a URL is a Pull Request URL
@@ -113,30 +136,25 @@ func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 		log.Printf("[PR_COMMENTHANDLER] Successfully Commented on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)
 
 		// parse the comment here to give a bounty
-		comment_text_parts := strings.Split(parsed_hook.Comment.Body, " ")
-		if comment_text_parts[0] == "!bounty" {
+		bounty, valid := parseBountyPoints(parsed_hook.Comment.Body)
 
-			// Convert the points
-			points, err := strconv.Atoi(comment_text_parts[1])
-			if err != nil {
-				log.Println("[ERROR][BOUNTY] Invalid Points Assigned -> ", comment_text_parts[1])
-			}
+		if valid {
 
 			// Assign the bounty points
-			err = globals.Myapp.Dbmanager.AssignBounty(
+			err := globals.Myapp.Dbmanager.AssignBounty(
 				parsed_hook.Sender.Login,
 				parsed_hook.Issue.User.Login,
 				parsed_hook.Issue.PullRequest.HTMLURL,
-				points,
+				bounty,
 			)
 			if err != nil {
 				log.Println("[ERROR][BOUNTY] Could not assign bounty points ->", err)
 				return
 			}
 
-			log.Printf("[PR_COMMENTHANDLER] Successfully Assigned Bounty on Pull Request -> Repository [%s] PR (#%d)[%s] to user %s for %s points\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Issue.User.Login, comment_text_parts[1])
+			log.Printf("[PR_COMMENTHANDLER] Successfully Assigned Bounty on Pull Request -> Repository [%s] PR (#%d)[%s] to user %s for %d points\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Issue.User.Login, bounty)
 
-			response := "Assigned " + comment_text_parts[1] + " Bounty points to user @" + parsed_hook.Issue.User.Login + " !"
+			response := "Assigned " + fmt.Sprint(bounty) + " Bounty points to user @" + parsed_hook.Issue.User.Login + " !"
 			comment := v3.IssueComment{Body: &response}
 
 			_, _, new_err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsed_hook.Repository.Owner.Login, parsed_hook.Repository.Name, int(parsed_hook.Issue.Number), &comment)
