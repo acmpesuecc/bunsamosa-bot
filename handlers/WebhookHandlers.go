@@ -25,14 +25,16 @@ func contains(s []string, str string) bool {
 	return false
 }
 
+const pattern = `^!bounty\s+(\d+)`
+
+var regex = regexp.MustCompile(pattern)
+
 // function to validate if PR bounty comment is in the correct format
 // and get bounty points
 func parseBountyPoints(comment string) (int, bool) {
 	comment = strings.TrimLeft(comment, " ")
 
-	pattern := `^!bounty\s+(\d+)`
 	// Compile the regular expression
-	regex := regexp.MustCompile(pattern)
 	// Use FindStringSubmatch to search for the pattern in the text
 	matches := regex.FindStringSubmatch(comment)
 	//fmt.Println(matches)
