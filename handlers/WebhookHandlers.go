@@ -103,34 +103,6 @@ func newPRHandler(parsed_hook *ghwebhooks.PullRequestPayload) {
 func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 	// Parse the current webhook
 
-	// List of maintainers
-	// TODO Move this to the app
-	_ = []string{
-		"anirudhrowjee",
-		"smuzzy-waiii",
-		"charan2308",
-		"suhaskv1",
-		"mohamed-ayaan358",
-		"typeaway14",
-		"navinshrinivas",
-		"alfadelta10010",
-		"anuragrao04",
-		"adarsh-liju",
-		"nishtha981",
-		"phoenixflame101",
-		"crypto-vbg",
-		"nigeldias27",
-		"bluishhh",
-		"himank101",
-		"theyashwanthsai",
-		"noel-saju",
-		"joyenbenitto",
-		"mukunddeepak",
-		"razerads",
-		"sid-008",
-		"arnavkumar7",
-	}
-
 	is_maintainer, err := globals.Myapp.Dbmanager.Check_is_maintainer(strings.ToLower(parsed_hook.Sender.Login))
 	if err != nil {
 		log.Println("[ERROR][BOUNTY] Could not check is_maintainer ->", err)
