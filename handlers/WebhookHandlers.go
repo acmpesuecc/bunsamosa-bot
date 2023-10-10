@@ -105,7 +105,7 @@ func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 
 	// List of maintainers
 	// TODO Move this to the app
-	maintainers := []string{
+	_ = []string{
 		"anirudhrowjee",
 		"smuzzy-waiii",
 		"charan2308",
@@ -131,8 +131,14 @@ func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 		"arnavkumar7",
 	}
 
+	is_maintainer, err := globals.Myapp.Dbmanager.Check_is_maintainer(strings.ToLower(parsed_hook.Sender.Login))
+	if err != nil {
+		log.Println("[ERROR][BOUNTY] Could not check is_maintainer ->", err)
+		return
+	}
+
 	// Step 1 -> Validate, make sure the issuecomment is on a PR and not on an issue,
-	if (parsed_hook.Issue.PullRequest != nil) && is_pull_request(parsed_hook.Issue.PullRequest.URL) && parsed_hook.Action == "created" && contains(maintainers, strings.ToLower(parsed_hook.Sender.Login)) {
+	if (parsed_hook.Issue.PullRequest != nil) && is_pull_request(parsed_hook.Issue.PullRequest.URL) && parsed_hook.Action == "created" && is_maintainer {
 
 		log.Println("A Maintainer Commented -> ")
 		log.Printf("[PR_COMMENTHANDLER] Successfully Commented on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)

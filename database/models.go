@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -12,6 +13,10 @@ type ContributorModel struct {
 
 	Name           string
 	Current_bounty int `gorm:"default:0"`
+}
+
+type MaintainerModel struct {
+	Username string `gorm:"primaryKey"`
 }
 
 type ContributorRecordModel struct {
@@ -61,6 +66,14 @@ func (manager *DBManager) Init(connection_string string) error {
 		return err
 	} else {
 		log.Println("[DBMANAGER] Successfully AutoMigrated ContributorRecordModel")
+	}
+
+	err = manager.db.AutoMigrate(&MaintainerModel{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate MaintainerModel ->", err)
+		return err
+	} else {
+		log.Println("[DBMANAGER] Successfully AutoMigrated MaintainerModel")
 	}
 
 	return nil
@@ -243,4 +256,23 @@ func (manager *DBManager) Get_leaderboard_mat() ([]ContributorModel, error) {
 		log.Println("[DBMANAGER|MUX-LB] Successfully Fetched all records")
 		return records, nil
 	}
+}
+
+func (manager *DBManager) Check_is_maintainer(user_name string) (bool, error) {
+	var maintainer MaintainerModel
+
+	log.Printf("[DBMANAGER|CHECK] Checking if %s is a maintainer\n", user_name)
+	result := manager.db.Limit(1).First(&maintainer, "username like ?", user_name)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			log.Printf("[DBMANAGER|CHECK] %s IS NOT a maintainer\n", user_name)
+			return false, nil
+		}
+		log.Println("[ERROR][DBMANAGER|CHECK] Could not check maintainer ->", result.Error)
+		return false, result.Error
+	}
+
+	log.Printf("[DBMANAGER|CHECK] %s IS a maintainer\n", user_name)
+	return true, nil
 }
