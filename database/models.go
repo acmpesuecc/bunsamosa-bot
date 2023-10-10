@@ -179,14 +179,9 @@ func (manager *DBManager) Get_all_records() ([]ContributorRecordModel, error) {
 }
 
 func (manager *DBManager) Get_user_records(contributor string) ([]ContributorRecordModel, error) {
-	query := `SELECT crm.contributor_name, crm.maintainer_name, crm.pullreq_url, crm.points_allotted
-FROM contributor_record_models as crm
-         JOIN (
-    SELECT MAX(id) as max_id
-    FROM contributor_record_models
-    WHERE contributor_name = ?
-    GROUP BY pullreq_url
-) AS subq ON crm.id = subq.max_id;`
+	query := `select * from contributor_record_models
+         where contributor_name like ?
+         order by created_at desc;`
 
 	// Declare the array of all records
 	var records []ContributorRecordModel
