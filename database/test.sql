@@ -18,7 +18,7 @@ SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
    GROUP by pullreq_url, contributor_name
 ) GROUP BY contributor_name;
 
--- INSERT INTO contributor_models (Name, Current_bounty, created_at, updated_at)
+INSERT INTO contributor_models (Name, Current_bounty, created_at, updated_at)
 SELECT cr.*
 FROM contributor_record_models cr
          INNER JOIN (
