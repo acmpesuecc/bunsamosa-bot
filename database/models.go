@@ -247,13 +247,13 @@ func (manager *DBManager) Get_leaderboard_mat() ([]ContributorModel, error) {
 	var records []ContributorModel
 
 	// Fetch from the database
-	log.Println("[DBMANAGER|MUX-LB] Fetching All Records")
+	//log.Println("[DBMANAGER|MUX-LB] Fetching All Records")
 	fetch_result := manager.db.Find(&records)
 	if fetch_result.Error != nil {
 		log.Println("[ERROR][DBMANAGER|MUX-LB] Could not fetch all records ->", fetch_result.Error)
 		return nil, fetch_result.Error
 	} else {
-		log.Println("[DBMANAGER|MUX-LB] Successfully Fetched all records")
+		//log.Println("[DBMANAGER|MUX-LB] Successfully Fetched all records")
 		return records, nil
 	}
 }
