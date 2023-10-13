@@ -46,7 +46,7 @@ func main() {
 	// with the webhook secret from the YAML Parsed into the app in scope
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", handlers.WebhookHandler)
+	mux.HandleFunc("/Github", handlers.WebhookHandler)
 	mux.HandleFunc("/ping", handlers.PingHandler)
 	mux.HandleFunc("/lb_all", handlers.Leaderboard_allrecords)
 	mux.HandleFunc("/leaderboard", handlers.Leaderboard_nonmaterialized)
