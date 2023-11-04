@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -12,6 +13,10 @@ type ContributorModel struct {
 
 	Name           string
 	Current_bounty int `gorm:"default:0"`
+}
+
+type MaintainerModel struct {
+	Username string `gorm:"primaryKey"`
 }
 
 type ContributorRecordModel struct {
@@ -61,6 +66,14 @@ func (manager *DBManager) Init(connection_string string) error {
 		return err
 	} else {
 		log.Println("[DBMANAGER] Successfully AutoMigrated ContributorRecordModel")
+	}
+
+	err = manager.db.AutoMigrate(&MaintainerModel{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate MaintainerModel ->", err)
+		return err
+	} else {
+		log.Println("[DBMANAGER] Successfully AutoMigrated MaintainerModel")
 	}
 
 	return nil
@@ -179,14 +192,9 @@ func (manager *DBManager) Get_all_records() ([]ContributorRecordModel, error) {
 }
 
 func (manager *DBManager) Get_user_records(contributor string) ([]ContributorRecordModel, error) {
-	query := `SELECT crm.contributor_name, crm.maintainer_name, crm.pullreq_url, crm.points_allotted
-FROM contributor_record_models as crm
-         JOIN (
-    SELECT MAX(id) as max_id
-    FROM contributor_record_models
-    WHERE contributor_name = ?
-    GROUP BY pullreq_url
-) AS subq ON crm.id = subq.max_id;`
+	query := `select * from contributor_record_models
+         where contributor_name like ?
+         order by created_at desc;`
 
 	// Declare the array of all records
 	var records []ContributorRecordModel
@@ -239,13 +247,32 @@ func (manager *DBManager) Get_leaderboard_mat() ([]ContributorModel, error) {
 	var records []ContributorModel
 
 	// Fetch from the database
-	log.Println("[DBMANAGER|MUX-LB] Fetching All Records")
+	//log.Println("[DBMANAGER|MUX-LB] Fetching All Records")
 	fetch_result := manager.db.Find(&records)
 	if fetch_result.Error != nil {
 		log.Println("[ERROR][DBMANAGER|MUX-LB] Could not fetch all records ->", fetch_result.Error)
 		return nil, fetch_result.Error
 	} else {
-		log.Println("[DBMANAGER|MUX-LB] Successfully Fetched all records")
+		//log.Println("[DBMANAGER|MUX-LB] Successfully Fetched all records")
 		return records, nil
 	}
+}
+
+func (manager *DBManager) Check_is_maintainer(user_name string) (bool, error) {
+	var maintainer MaintainerModel
+
+	log.Printf("[DBMANAGER|CHECK] Checking if %s is a maintainer\n", user_name)
+	result := manager.db.Limit(1).First(&maintainer, "username like ?", user_name)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			log.Printf("[DBMANAGER|CHECK] %s IS NOT a maintainer\n", user_name)
+			return false, nil
+		}
+		log.Println("[ERROR][DBMANAGER|CHECK] Could not check maintainer ->", result.Error)
+		return false, result.Error
+	}
+
+	log.Printf("[DBMANAGER|CHECK] %s IS a maintainer\n", user_name)
+	return true, nil
 }
