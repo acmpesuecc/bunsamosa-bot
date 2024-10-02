@@ -34,4 +34,33 @@ type DBManager struct {
 	db *gorm.DB
 }
 
+type Maintainer struct {
+	ID     int    `gorm:"primaryKey"`
+	Handle string
+	Repos  []Repo `gorm:"foreignKey:MaintainerID"`
+}
+
+type Repo struct {
+	RepoID       int    `gorm:"primaryKey"`
+	RepoURL      string
+	MaintainerID int
+	Maintainer   Maintainer
+	Issues       []Issue `gorm:"foreignKey:RepoID"`
+}
+
+type Issue struct {
+	IssueID int `gorm:"primaryKey"`
+	IssueURL string
+	RepoID   int
+	Repo     Repo
+	Status   bool
+	Contributors []Contributor `gorm:"foreignKey:AssignedIssueID"`
+}
+
+type Contributor struct {
+	ID               int `gorm:"primaryKey"`
+	Handle           string
+	AssignedIssueID  int
+	AssignedIssue    Issue
+}
 
