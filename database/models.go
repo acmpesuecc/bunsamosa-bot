@@ -4,14 +4,10 @@ import (
 	"errors"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-  "encoding/json"
+
 	"log"
 )
 
-// Manager struct
-type DBManager struct {
-	db *gorm.DB
-}
 type ContributorModel struct {
 	gorm.Model
 
@@ -36,49 +32,43 @@ type ContributorRecordModel struct {
 // String
 // Return GORM instance to store on main struct
 
-type Issue string
-type Contributor string
+// Manager struct
+type DBManager struct {
+	db *gorm.DB
+}
 
-type IssueMaps struct {
+type Maintainer struct {
+  gorm.Model
+  ID     int    `gorm:"primaryKey"`
+	Handle string
+	Repos  []Repo `gorm:"foreignKey:MaintainerID"`
+}
+
+type Repo struct {
 	gorm.Model
-	IssueStatus       string `gorm:"type:text"` // Serialized map[Issue]bool
-	ContributorToIssue string `gorm:"type:text"` // Serialized map[Contributor]Issue
+  RepoID       int    `gorm:"primaryKey"`
+	RepoURL      string
+	MaintainerID int
+	Maintainer   Maintainer
+	Issues       []Issue `gorm:"foreignKey:RepoID"`
 }
 
-func (im *IssueMaps) SetIssueStatus(m map[Issue]bool) error {
-	bytes, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-	im.IssueStatus = string(bytes)
-	return nil
+type Issue struct {
+	gorm.Model
+  IssueID int `gorm:"primaryKey"`
+	IssueURL string
+	RepoID   int
+	Repo     Repo
+	Status   bool
+	Contributors []Contributor `gorm:"foreignKey:AssignedIssueID"`
 }
 
-func (im *IssueMaps) GetIssueStatus() (map[Issue]bool, error) {
-	var m map[Issue]bool
-	err := json.Unmarshal([]byte(im.IssueStatus), &m)
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (im *IssueMaps) SetContributorToIssue(m map[Contributor]Issue) error {
-	bytes, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-	im.ContributorToIssue = string(bytes)
-	return nil
-}
-
-func (im *IssueMaps) GetContributorToIssue() (map[Contributor]Issue, error) {
-	var m map[Contributor]Issue
-	err := json.Unmarshal([]byte(im.ContributorToIssue), &m)
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
+type Contributor struct {
+	gorm.Model
+  ID               int `gorm:"primaryKey"`
+	Handle           string
+	AssignedIssueID  int
+	AssignedIssue    Issue
 }
 func (manager *DBManager) Init(connection_string string) error {
 
