@@ -60,6 +60,7 @@ func main() {
 	mux.HandleFunc("GET /leaderboard", handlers.Leaderboard_nonmaterialized)
 	log.Println("[INIT] Registered all routes")
 
+	// NOTE: Stopped servers for testing
 	handler := cors.Default().Handler(mux)
 	log.Println("[INIT] Initialized CORS")
 	log.Println("[INIT] Starting Web Server")

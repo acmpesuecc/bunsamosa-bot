@@ -62,6 +62,13 @@ func (manager *DBManager) Init(connection_string string) error {
 		log.Println("[DBMANAGER] Sucessfully AutoMigrated Repo")
 	}
 
+	err = manager.db.AutoMigrate(&MaintainerRepo{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate MaintainerRepo ->", err)
+	} else {
+		log.Println("[DBMANAGER] Sucessfully AutoMigrated MaintainerRepo")
+	}
+
 	err = manager.db.AutoMigrate(&Issue{})
 	if err != nil {
 		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate Issue ->", err)
@@ -74,6 +81,20 @@ func (manager *DBManager) Init(connection_string string) error {
 		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate Contributor ->", err)
 	} else {
 		log.Println("[DBMANAGER] Sucessfully AutoMigrated Contributor")
+	}
+
+	err = manager.db.AutoMigrate(&ContributorIssue{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate ContributorIssue ->", err)
+	} else {
+		log.Println("[DBMANAGER] Sucessfully AutoMigrated ContributorIssue")
+	}
+
+	err = manager.db.AutoMigrate(&BountyLogging{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate BountyLogging ->", err)
+	} else {
+		log.Println("[DBMANAGER] Sucessfully AutoMigrated BountyLogging")
 	}
 
 	return nil

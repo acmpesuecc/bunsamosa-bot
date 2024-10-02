@@ -1,8 +1,6 @@
 package database
 
-import (
-	"gorm.io/gorm"
-)
+import "gorm.io/gorm"
 
 type DBManager struct {
 	db *gorm.DB
@@ -31,33 +29,64 @@ type ContributorRecordModel struct {
 type Maintainer struct {
 	MaintainerID int `gorm:"primaryKey;not null;autoIncrement"`
 	GithubHandle string
-	Repos        []Repo
+
+	MaintainerRepos []MaintainerRepo
 }
 
 type Repo struct {
 	RepoID  int `gorm:"primaryKey;not null;autoIncrement"`
 	RepoURL string
-	Issues  []Issue
 
+	Issues          []Issue
+	MaintainerRepos []MaintainerRepo
+}
+
+type MaintainerRepo struct {
+	Id int `gorm:"primaryKey;not null;autoIncrememnt"`
+
+	// Foreign keys part of MaintainerRepo
 	MaintainerID int
+	RepoID       int
 }
 
 type Issue struct {
 	IssueID  int `gorm:"primaryKey;not null;autoIncrement"`
 	IssueURL string
 	Status   bool
-	Contributor Contributor
+	Closed   bool `gorm:"default:0"`
 
-	RepoID      int
-	// ContributorID int
+	ContributorIssues []ContributorIssue
+	BountyLogs        []BountyLogging
 }
 
 type Contributor struct {
 	ID           int `gorm:"primaryKey;not null;autoIncrement"`
 	GithubHandle string
 
+	// Foreign keys part of Contributor
 	IssueID int
+
+	ContributorIssue ContributorIssue
+	BountyLogs       []BountyLogging
 }
 
-// NOTE:
-// select * from contributor join issue on contributor.assignedissueid = issue.issueid where contirbutor.githubhandle = anirudhsudhir
+type ContributorIssue struct {
+	ID                      int `gorm:"primaryKey;not null;autoIncrememnt"`
+	IssueURL                string
+	IssueStatus             string
+	ContributorGithubHandle string
+
+	// Foreign keys part of ContributorIssue
+	ContributorID int
+	IssueID       int
+}
+
+// Append-only
+type BountyLogging struct {
+	ID             int `gorm:"primaryKey;not null;autoIncrememnt;<-:create"`
+	AssignedBounty int `gorm:"default:0;<-:create"`
+
+	// Foreign Key's part of BountyLogging
+	ContributorID int `gorm:"<-:create"`
+	IssueID       int `gorm:"<-:create"`
+}
