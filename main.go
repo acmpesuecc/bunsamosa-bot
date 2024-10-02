@@ -37,7 +37,8 @@ func main() {
 	log.Println("[INIT] YAML Parsed successfully")
 
 	// Initialize the Github Client
-	globals.Myapp.Initialize_github_client()
+	// globals.Myapp.Initialize_github_client()
+
 	// Initialize the database
 	globals.Myapp.Initialize_database()
 
@@ -46,12 +47,17 @@ func main() {
 	// with the webhook secret from the YAML Parsed into the app in scope
 
 	mux := http.NewServeMux()
+	// Utilised routes
 	mux.HandleFunc("POST /Github", handlers.WebhookHandler)
-	mux.HandleFunc("GET /ping", handlers.PingHandler)
-	mux.HandleFunc("GET /lb_all", handlers.Leaderboard_allrecords)
-	mux.HandleFunc("GET /leaderboard", handlers.Leaderboard_nonmaterialized)
 	mux.HandleFunc("GET /leaderboard_mat", handlers.Leaderboard_materialized)
 	mux.HandleFunc("GET /records", handlers.Leaderboard_userspecific)
+
+	// UwU Route
+	mux.HandleFunc("GET /ping", handlers.PingHandler)
+
+	// Unutilised routes
+	mux.HandleFunc("GET /lb_all", handlers.Leaderboard_allrecords)
+	mux.HandleFunc("GET /leaderboard", handlers.Leaderboard_nonmaterialized)
 	log.Println("[INIT] Registered all routes")
 
 	handler := cors.Default().Handler(mux)

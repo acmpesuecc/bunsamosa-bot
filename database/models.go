@@ -2,8 +2,11 @@ package database
 
 import (
 	"gorm.io/gorm"
-
 )
+
+type DBManager struct {
+	db *gorm.DB
+}
 
 type ContributorModel struct {
 	gorm.Model
@@ -25,42 +28,36 @@ type ContributorRecordModel struct {
 	Points_allotted  int
 }
 
-// TODO Implement method to connect GORM based on connection
-// String
-// Return GORM instance to store on main struct
-
-// Manager struct
-type DBManager struct {
-	db *gorm.DB
-}
-
 type Maintainer struct {
-	ID     int    `gorm:"primaryKey"`
-	Handle string
-	Repos  []Repo `gorm:"foreignKey:MaintainerID"`
+	MaintainerID int `gorm:"primaryKey;not null;autoIncrement"`
+	GithubHandle string
+	Repos        []Repo
 }
 
 type Repo struct {
-	RepoID       int    `gorm:"primaryKey"`
-	RepoURL      string
+	RepoID  int `gorm:"primaryKey;not null;autoIncrement"`
+	RepoURL string
+	Issues  []Issue
+
 	MaintainerID int
-	Maintainer   Maintainer
-	Issues       []Issue `gorm:"foreignKey:RepoID"`
 }
 
 type Issue struct {
-	IssueID int `gorm:"primaryKey"`
+	IssueID  int `gorm:"primaryKey;not null;autoIncrement"`
 	IssueURL string
-	RepoID   int
-	Repo     Repo
 	Status   bool
-	Contributors []Contributor `gorm:"foreignKey:AssignedIssueID"`
+	Contributor Contributor
+
+	RepoID      int
+	// ContributorID int
 }
 
 type Contributor struct {
-	ID               int `gorm:"primaryKey"`
-	Handle           string
-	AssignedIssueID  int
-	AssignedIssue    Issue
+	ID           int `gorm:"primaryKey;not null;autoIncrement"`
+	GithubHandle string
+
+	IssueID int
 }
 
+// NOTE:
+// select * from contributor join issue on contributor.assignedissueid = issue.issueid where contirbutor.githubhandle = anirudhsudhir

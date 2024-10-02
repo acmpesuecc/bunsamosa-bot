@@ -1,6 +1,8 @@
 package database
+
 import (
 	"errors"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -44,6 +46,34 @@ func (manager *DBManager) Init(connection_string string) error {
 		return err
 	} else {
 		log.Println("[DBMANAGER] Successfully AutoMigrated MaintainerModel")
+	}
+
+	err = manager.db.AutoMigrate(&Maintainer{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate Maintainer ->", err)
+	} else {
+		log.Println("[DBMANAGER] Sucessfully AutoMigrated Maintainer")
+	}
+
+	err = manager.db.AutoMigrate(&Repo{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate Repo ->", err)
+	} else {
+		log.Println("[DBMANAGER] Sucessfully AutoMigrated Repo")
+	}
+
+	err = manager.db.AutoMigrate(&Issue{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate Issue ->", err)
+	} else {
+		log.Println("[DBMANAGER] Sucessfully AutoMigrated Issue")
+	}
+
+	err = manager.db.AutoMigrate(&Contributor{})
+	if err != nil {
+		log.Println("[ERROR][DBMANAGER] Could not AutoMigrate Contributor ->", err)
+	} else {
+		log.Println("[DBMANAGER] Sucessfully AutoMigrated Contributor")
 	}
 
 	return nil

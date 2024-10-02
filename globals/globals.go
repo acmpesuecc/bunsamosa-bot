@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
-	"io/ioutil"
 	"path/filepath"
 
 	v3 "github.com/google/go-github/v47/github"
@@ -39,7 +39,7 @@ var Myapp App
 func (a *App) Parse_from_YAML(path string) {
 
 	filename, _ := filepath.Abs(path)
-	yamlFile, err := ioutil.ReadFile(filename)
+	yamlFile, err := os.ReadFile(filename)
 
 	if err != nil {
 		log.Println("[ERROR] Invalid Secrets YAML Filepath")
