@@ -4,10 +4,14 @@ import (
 	"errors"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-
+  "encoding/json"
 	"log"
 )
 
+// Manager struct
+type DBManager struct {
+	db *gorm.DB
+}
 type ContributorModel struct {
 	gorm.Model
 
@@ -32,11 +36,50 @@ type ContributorRecordModel struct {
 // String
 // Return GORM instance to store on main struct
 
-// Manager struct
-type DBManager struct {
-	db *gorm.DB
+type Issue string
+type Contributor string
+
+type IssueMaps struct {
+	gorm.Model
+	IssueStatus       string `gorm:"type:text"` // Serialized map[Issue]bool
+	ContributorToIssue string `gorm:"type:text"` // Serialized map[Contributor]Issue
 }
 
+func (im *IssueMaps) SetIssueStatus(m map[Issue]bool) error {
+	bytes, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	im.IssueStatus = string(bytes)
+	return nil
+}
+
+func (im *IssueMaps) GetIssueStatus() (map[Issue]bool, error) {
+	var m map[Issue]bool
+	err := json.Unmarshal([]byte(im.IssueStatus), &m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (im *IssueMaps) SetContributorToIssue(m map[Contributor]Issue) error {
+	bytes, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	im.ContributorToIssue = string(bytes)
+	return nil
+}
+
+func (im *IssueMaps) GetContributorToIssue() (map[Contributor]Issue, error) {
+	var m map[Contributor]Issue
+	err := json.Unmarshal([]byte(im.ContributorToIssue), &m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
 func (manager *DBManager) Init(connection_string string) error {
 
 	log.Println("[DBMANAGER] Initializing Database")
