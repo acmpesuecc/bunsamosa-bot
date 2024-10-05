@@ -50,31 +50,28 @@ type MaintainerRepo struct {
 }
 
 type Issue struct {
-	IssueID  int `gorm:"primaryKey;not null;autoIncrement"`
-	IssueURL string
-	Status   bool
-	Closed   bool `gorm:"default:0"`
+	IssueID int    `gorm:"primaryKey;not null;autoIncrement"`
+	URL     string `gorm:"default:null"`
+	Status  string `gorm:"default:0"`
+	Closed  bool   `gorm:"default:0"`
+
+	// Foreign keys part of Issue
+	RepoID int
 
 	ContributorIssues []ContributorIssue
 	BountyLogs        []BountyLogging
 }
 
 type Contributor struct {
-	ID           int `gorm:"primaryKey;not null;autoIncrement"`
-	GithubHandle string
-
-	// Foreign keys part of Contributor
-	IssueID int
+	ID           int    `gorm:"primaryKey;not null;autoIncrement"`
+	GithubHandle string `gorm:"default:null"`
 
 	ContributorIssue ContributorIssue
 	BountyLogs       []BountyLogging
 }
 
 type ContributorIssue struct {
-	ID                      int `gorm:"primaryKey;not null;autoIncrememnt"`
-	IssueURL                string
-	IssueStatus             string
-	ContributorGithubHandle string
+	ID int `gorm:"primaryKey;not null;autoIncrememnt"`
 
 	// Foreign keys part of ContributorIssue
 	ContributorID int
