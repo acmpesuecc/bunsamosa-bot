@@ -159,7 +159,7 @@ func newIssueHandler(parsed_hook *ghwebhooks.IssuesPayload) {
 
 func newIssueCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 
-	log.Printf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n", parsed_hook.Repository.FullName, parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Comment.Body)
+	log.Printf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Comment.Body)
 
 }
 
