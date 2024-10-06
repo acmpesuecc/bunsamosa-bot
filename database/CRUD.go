@@ -361,6 +361,63 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string)
 	return true, nil
 }
 
-func (manager *DBManager) DeassignIssue(issueURL string) {}
+func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
+	var issueData Issue
+	var contributorIssue ContributorIssue
+
+	log.Printf("[DBMANAGER|DEASSIGN] Obtaining the id of issue %q from the Issues table\n", issueURL)
+	// Fetch the issue record from the Issues table
+	result := manager.db.First(&issueData, "url LIKE ?", issueURL)
+	if result.Error != nil {
+		// If the issue is not found, log and return false without an error, or modify if u want error
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			log.Printf("[DBMANAGER|DEASSIGN] Issue %q not found in the Issues table\n", issueURL)
+			return false, nil
+		}
+		log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not obtain issue %q from the Issues table", issueURL)
+		return false, result.Error
+	}
+
+	log.Printf("[DBMANAGER|DEASSIGN] Checking if the issue with IssueId %d has been assigned to any contributor\n", issueData.IssueID)
+	// Fetch the contributor issue record from the ContributorIssues table
+	result = manager.db.Find(&contributorIssue, "issue_id = ?", issueData.IssueID)
+	if result.Error != nil {
+		// If no contributor is assigned to the issue, log and return false without an error
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			log.Printf("[DBMANAGER|DEASSIGN] No contributor assigned to issue %q\n", issueURL)
+			return false, nil
+		}
+		log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not query issue %q with IssueId %d from the ContributorIssues table\n", issueURL, issueData.IssueID)
+		return false, result.Error
+	}
+
+	log.Printf("[DBMANAGER|DEASSIGN] Removing assignment of issue with IssueId %d from contributor with ContributorID %d\n", issueData.IssueID, contributorIssue.ContributorID)
+	// Start a new transaction
+	err := manager.db.Transaction(func(tx *gorm.DB) error {
+		// Set the contributor ID to 0 in the ContributorIssues table
+		contributorIssue.ContributorID = 0
+		result = tx.Save(&contributorIssue)
+		if result.Error != nil {
+			log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not remove assignment of issue with IssueId %d from contributor with ContributorID %d\n", issueData.IssueID, contributorIssue.ContributorID)
+			return result.Error
+		}
+
+		// Update the status of the issue, change to bool later
+		issueData.Status = "unassigned"
+		result = tx.Save(&issueData)
+		if result.Error != nil {
+			log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not update status of issue with IssueId %d\n", issueData.IssueID)
+			return result.Error
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
 func (manager *DBManager) WithdrawIssue(issueURL string) {}
 func (manager *DBManager) ExtendIssue(issueURL string)   {}
