@@ -194,7 +194,7 @@ SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
 	return nil
 }
 
-func (manager *DBManager) Get_all_records() ([]ContributorRecordModel, error) {
+func (manager *DBManager) GetAllRecords() ([]ContributorRecordModel, error) {
 
 	// Declare the array of all records
 	var records []ContributorRecordModel
@@ -212,7 +212,7 @@ func (manager *DBManager) Get_all_records() ([]ContributorRecordModel, error) {
 
 }
 
-func (manager *DBManager) Get_user_records(contributor string) ([]ContributorRecordModel, error) {
+func (manager *DBManager) GetUserRecords(contributor string) ([]ContributorRecordModel, error) {
 	query := `select * from contributor_record_models
          where contributor_name like ?
          order by created_at desc;`
@@ -234,7 +234,7 @@ func (manager *DBManager) Get_user_records(contributor string) ([]ContributorRec
 	}
 }
 
-func (manager *DBManager) Get_leaderboard() ([]ContributorModel, error) {
+func (manager *DBManager) GetLeaderboard() ([]ContributorModel, error) {
 
 	leaderboard_query := `
 	SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
@@ -263,7 +263,7 @@ func (manager *DBManager) Get_leaderboard() ([]ContributorModel, error) {
 
 }
 
-func (manager *DBManager) Get_leaderboard_mat() ([]ContributorModel, error) {
+func (manager *DBManager) GetLeaderboardMat() ([]ContributorModel, error) {
 	// Declare the array of all records
 	var records []ContributorModel
 
@@ -279,7 +279,7 @@ func (manager *DBManager) Get_leaderboard_mat() ([]ContributorModel, error) {
 	}
 }
 
-func (manager *DBManager) Check_is_maintainer(user_name string) (bool, error) {
+func (manager *DBManager) CheckIsMaintainer(user_name string) (bool, error) {
 	var maintainer MaintainerModel
 
 	log.Printf("[DBMANAGER|CHECK] Checking if %s is a maintainer\n", user_name)

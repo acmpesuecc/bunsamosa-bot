@@ -130,7 +130,7 @@ func (a *App) Leaderboard_GetAllRecords() ([]database.ContributorRecordModel, er
 	var all_records []database.ContributorRecordModel
 
 	// Use the database method
-	records, err := a.Dbmanager.Get_all_records()
+	records, err := a.Dbmanager.GetAllRecords()
 	if err != nil {
 		return nil, err
 	} else {
@@ -148,7 +148,7 @@ func (a *App) AssignBountyPoints() ([]database.ContributorRecordModel, error) {
 	var all_records []database.ContributorRecordModel
 
 	// Use the database method
-	records, err := a.Dbmanager.Get_all_records()
+	records, err := a.Dbmanager.GetAllRecords()
 	if err != nil {
 		return nil, err
 	} else {
@@ -164,7 +164,7 @@ func (a *App) Leaderboard_GetNonMaterialized() ([]database.ContributorModel, err
 	// Get a materialized view of the leaderboard
 	var leaderboard []database.ContributorModel
 
-	records, err := a.Dbmanager.Get_leaderboard()
+	records, err := a.Dbmanager.GetLeaderboard()
 	if err != nil {
 		return nil, err
 	} else {
@@ -180,7 +180,7 @@ func (a *App) Leaderboard_GetMaterialized() ([]database.ContributorModel, error)
 	// Get a materialized view of the leaderboard
 	var leaderboard []database.ContributorModel
 
-	records, err := a.Dbmanager.Get_leaderboard_mat()
+	records, err := a.Dbmanager.GetLeaderboardMat()
 	if err != nil {
 		return nil, err
 	} else {
@@ -199,7 +199,7 @@ func (a *App) Leaderboard_GetUserRecords(user string) ([]database.ContributorRec
 	var all_records []database.ContributorRecordModel
 
 	// Use the database method
-	records, err := a.Dbmanager.Get_user_records(user)
+	records, err := a.Dbmanager.GetUserRecords(user)
 	if err != nil {
 		return nil, err
 	} else {
