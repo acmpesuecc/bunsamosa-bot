@@ -298,21 +298,29 @@ func (manager *DBManager) Check_is_maintainer(user_name string) (bool, error) {
 	return true, nil
 }
 
-// TODO: Add status and repo id while creating record
-// Check status and closure status before assigning issue
-func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string) (bool, error) {
+// Check issue status and closure status before assigning issue
+func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string, repoURL string) (bool, error) {
 	// Get issue_id from Issues table, create the issue record if it does not exist
 	// Get the contributor_id from the Contributors table, create the contributor
 	// record if it does not exist Check if the contributor has not been assigned
 	// another issue Check if the issue has not been assigned to another
 	// contributor If both the checks yield true, update the record in the
 	// ContributorIssues table
+	var repoData Repo
 	var issueData Issue
 	var contributorData Contributor
 
+	log.Printf("[DBMANAGER|ASSIGN] Obtaining the id of repo %q from the Repos table\n", repoURL)
+	// Fetch the record with matching conditions or create a new record
+	result := manager.db.First(&repoData, &Repo{URL: repoURL})
+	if result.Error != nil {
+		log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not obtain repo %q from the Repos table", repoURL)
+		return false, result.Error
+	}
+
 	log.Printf("[DBMANAGER|ASSIGN] Obtaining the id of issue %q from the Issues table\n", issueURL)
 	// Fetch the record with matching conditions or create a new record
-	result := manager.db.FirstOrCreate(&issueData, &Issue{URL: issueURL})
+	result = manager.db.FirstOrCreate(&issueData, &Issue{URL: issueURL, RepoID: repoData.ID})
 	if result.Error != nil {
 		log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not obtain issue %q from the Issues table", issueURL)
 		return false, result.Error
@@ -339,23 +347,39 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string)
 	} else {
 		// If contributor is assigned another issue (IssueID != 0), return false without an error
 		if contributorIssue.IssueID != 0 {
-			log.Printf("[DBMANAGER|ASSIGN] Contributor %q with ContributorId %d has already been assigned an issue with IssueId %d\n", contributorHandle, contributorData.ID, issueData.IssueID)
+			log.Printf("[DBMANAGER|ASSIGN] Contributor %q with ContributorId %d has already been assigned an issue with IssueId %d\n", contributorHandle, contributorData.ID, issueData.ID)
 			return false, nil
 		}
 	}
 
-	log.Printf("[DBMANAGER|ASSIGN] Storing assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.IssueID, contributorHandle, contributorData.ID)
-	result = manager.db.FirstOrCreate(&contributorIssue, ContributorIssue{IssueID: issueData.IssueID})
+	log.Printf("[DBMANAGER|ASSIGN] Storing assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.ID, contributorHandle, contributorData.ID)
+	result = manager.db.FirstOrCreate(&contributorIssue, ContributorIssue{IssueID: issueData.ID})
 	if result.Error != nil {
-		log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not obtain issue with IssueId %d from the ContributorIssues table", issueData.IssueID)
+		log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not obtain issue with IssueId %d from the ContributorIssues table", issueData.ID)
 		return false, result.Error
 	}
 
-	contributorIssue.ContributorID = contributorData.ID
-	result = manager.db.Save(&contributorIssue)
-	if result.Error != nil {
-		log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not store assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.IssueID, contributorHandle, contributorData.ID)
-		return false, result.Error
+	err := manager.db.Transaction(func(tx *gorm.DB) error {
+		contributorIssue.ContributorID = contributorData.ID
+		result = tx.Save(&contributorIssue)
+		if result.Error != nil {
+			log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not store assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.ID, contributorHandle, contributorData.ID)
+			return result.Error
+		}
+
+		issueData.Status = true
+		result = tx.Save(&issueData)
+		if result.Error != nil {
+			log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not store assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.ID, contributorHandle, contributorData.ID)
+			return result.Error
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("[ERROR][DBMANAGER|ASSIGN] Could not store assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.ID, contributorHandle, contributorData.ID)
+		return false, err
 	}
 
 	return true, nil
@@ -378,35 +402,35 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 		return false, result.Error
 	}
 
-	log.Printf("[DBMANAGER|DEASSIGN] Checking if the issue with IssueId %d has been assigned to any contributor\n", issueData.IssueID)
+	log.Printf("[DBMANAGER|DEASSIGN] Checking if the issue with IssueId %d has been assigned to any contributor\n", issueData.ID)
 	// Fetch the contributor issue record from the ContributorIssues table
-	result = manager.db.Find(&contributorIssue, "issue_id = ?", issueData.IssueID)
+	result = manager.db.Find(&contributorIssue, "issue_id = ?", issueData.ID)
 	if result.Error != nil {
 		// If no contributor is assigned to the issue, log and return false without an error
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			log.Printf("[DBMANAGER|DEASSIGN] No contributor assigned to issue %q\n", issueURL)
 			return false, nil
 		}
-		log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not query issue %q with IssueId %d from the ContributorIssues table\n", issueURL, issueData.IssueID)
+		log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not query issue %q with IssueId %d from the ContributorIssues table\n", issueURL, issueData.ID)
 		return false, result.Error
 	}
 
-	log.Printf("[DBMANAGER|DEASSIGN] Removing assignment of issue with IssueId %d from contributor with ContributorID %d\n", issueData.IssueID, contributorIssue.ContributorID)
+	log.Printf("[DBMANAGER|DEASSIGN] Removing assignment of issue with IssueId %d from contributor with ContributorID %d\n", issueData.ID, contributorIssue.ContributorID)
 	// Start a new transaction
 	err := manager.db.Transaction(func(tx *gorm.DB) error {
 		// Set the contributor ID to 0 in the ContributorIssues table
 		contributorIssue.ContributorID = 0
 		result = tx.Save(&contributorIssue)
 		if result.Error != nil {
-			log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not remove assignment of issue with IssueId %d from contributor with ContributorID %d\n", issueData.IssueID, contributorIssue.ContributorID)
+			log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not remove assignment of issue with IssueId %d from contributor with ContributorID %d\n", issueData.ID, contributorIssue.ContributorID)
 			return result.Error
 		}
 
 		// Update the status of the issue, change to bool later
-		issueData.Status = "unassigned"
+		issueData.Status = false
 		result = tx.Save(&issueData)
 		if result.Error != nil {
-			log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not update status of issue with IssueId %d\n", issueData.IssueID)
+			log.Printf("[ERROR][DBMANAGER|DEASSIGN] Could not update status of issue with IssueId %d\n", issueData.ID)
 			return result.Error
 		}
 
@@ -419,5 +443,72 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 
 	return true, nil
 }
-func (manager *DBManager) WithdrawIssue(issueURL string) {}
-func (manager *DBManager) ExtendIssue(issueURL string)   {}
+
+func (manager *DBManager) WithdrawIssue(issueURL string, contributorHandle string) (bool, error) {
+	// While withdrawing an issue we need to make sure to check
+	// within the db that the contributor requesting for the
+	// deassign is assigned to the issue with the same url
+	//
+	// we need to update the issues table and set its status
+	// to false, indicating the issue is now available to be
+	// contributed to by another person
+
+	var issueData Issue
+	var contributorData Contributor
+
+	log.Printf("[DBMANAGER][WITHDRAW] Obtaining the id of the issue from Issues table")
+	result := manager.db.First(&issueData, &Issue{URL: issueURL})
+	if result.Error != nil {
+		log.Printf("[ERROR][DBMANAGER|WITHDRAW] Could not obtain the id of issue %q from Issues table", issueURL)
+		return false, result.Error
+	}
+
+	log.Printf("[DBMANAGER][WITHDRAW] Obtaining the id of the contributor for the contributor handle")
+	result = manager.db.First(&contributorData, &Contributor{GithubHandle: contributorHandle})
+	if result.Error != nil {
+		log.Printf("[ERROR][DBMANAGER|WITHDRAW] Couldn't obtain the id of contributor %q from Contributor table", contributorHandle)
+		return false, result.Error
+	}
+
+	log.Println("[DBMANAGER][WITHDRAW] Checking if the contributor is assigned to the request issue")
+	var contributorIssueData ContributorIssue
+	result = manager.db.First(&contributorIssueData, "contributor_id = ?", contributorData.ID)
+	if result.Error != nil {
+		log.Printf("[ERROR][DBMANAGER|WITHDRAW] Could not query contributor %q with contributor id %d from the ContributorIssues table\n", contributorHandle, contributorData.ID)
+		return false, result.Error
+	} else {
+		// If contributor is assigned another issue, and there is a mismatch between
+		// the issue withdraw has been requested from and what they have been assigned to
+		if contributorIssueData.IssueID != issueData.ID {
+			log.Printf("[DBMANAGER|WITHDRAW] Contributor %q with ContributorId %d requested for a deassign on a different Issue with IssueId %d \n", contributorHandle, contributorData.ID, issueData.ID)
+			return false, nil
+		}
+	}
+
+	err := manager.db.Transaction(func(tx *gorm.DB) error {
+		contributorIssueData.IssueID = 0
+		transaction_result := tx.Save(&contributorIssueData)
+		if transaction_result.Error != nil {
+			log.Printf("[ERROR][DBMANAGER|TRANSACTION|WITHDRAW] Failed to update contributorIssueData.IssueID for contributor %q for issueID %q\n", contributorHandle, issueData.ID)
+			return transaction_result.Error
+		}
+
+		issueData.Status = false
+		transaction_result = tx.Save(&issueData)
+		if transaction_result.Error != nil {
+			log.Printf("[ERROR][DBMANAGER|TRANSACTION|WITHDRAW] Failed to update IssueID %q(%q) status to false(available)\n", issueData.ID, issueURL)
+			return transaction_result.Error
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("[ERROR][DBMANAGER|TRANSACTION|WITHDRAW] Couldnt perform transaction to withdraw contributor %q from issue %q\n", contributorHandle, issueURL)
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (manager *DBManager) ExtendIssue(issueURL string) {}

@@ -27,15 +27,15 @@ type ContributorRecordModel struct {
 }
 
 type Maintainer struct {
-	MaintainerID int `gorm:"primaryKey;not null;autoIncrement"`
+	ID           int `gorm:"primaryKey;not null;autoIncrement"`
 	GithubHandle string
 
 	MaintainerRepos []MaintainerRepo
 }
 
 type Repo struct {
-	RepoID  int `gorm:"primaryKey;not null;autoIncrement"`
-	RepoURL string
+	ID  int `gorm:"primaryKey;not null;autoIncrement"`
+	URL string
 
 	Issues          []Issue
 	MaintainerRepos []MaintainerRepo
@@ -50,10 +50,10 @@ type MaintainerRepo struct {
 }
 
 type Issue struct {
-	IssueID int    `gorm:"primaryKey;not null;autoIncrement"`
-	URL     string `gorm:"default:null"`
-	Status  string `gorm:"default:0"`
-	Closed  bool   `gorm:"default:0"`
+	ID     int    `gorm:"primaryKey;not null;autoIncrement"`
+	URL    string `gorm:"default:null"`
+	Status bool `gorm:"default:0"`
+	Closed bool   `gorm:"default:0"`
 
 	// Foreign keys part of Issue
 	RepoID int

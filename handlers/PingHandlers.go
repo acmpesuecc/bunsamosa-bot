@@ -30,6 +30,7 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	}
 
 	//  time is sent as string ig ?
+	// [GOD]: Yes
 	event.TimeInitiated, err = time.Parse(time.RFC3339, event.TimeInitiated.String())
 	if err != nil {
 		http.Error(response, "Invalid time format", http.StatusBadRequest)
@@ -40,5 +41,5 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 
 	// Now we handle as needed
 	// maybe call a deassin heree?
-
+	// [GOD]: Yes my child
 }

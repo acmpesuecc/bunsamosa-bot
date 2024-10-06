@@ -54,6 +54,7 @@ func main() {
 
 	// UwU Route
 	mux.HandleFunc("GET /ping", handlers.PingHandler)
+	mux.HandleFunc("/timer", handlers.TimerHandler)
 
 	// Unutilised routes
 	mux.HandleFunc("GET /lb_all", handlers.Leaderboard_allrecords)
