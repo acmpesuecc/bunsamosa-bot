@@ -34,6 +34,15 @@ func newIssueCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 
 	log.Printf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Comment.Body)
 
+	is_maintainer, err := globals.Myapp.Dbmanager.CheckIsMaintainer(strings.ToLower(parsed_hook.Sender.Login))
+	if err != nil {
+		log.Printf("[ERROR][BOUNTY] Could not check is_maintainer for issue %q\n", parsed_hook.Issue.Title)
+	} else {
+		log.Printf("[ISSUE_COMMENT_HANDLE] A maintainer %q has commented on issue %q with title %q\n", parsed_hook.Sender.Login, parsed_hook.Issue.URL, parsed_hook.Issue.Title)
+	}
+
+	if is_maintainer {}
+
 }
 
 func newPRHandler(parsed_hook *ghwebhooks.PullRequestPayload) {

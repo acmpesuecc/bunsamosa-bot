@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 
@@ -10,12 +9,12 @@ import (
 	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	"github.com/anirudhRowjee/bunsamosa-bot/handlers"
 	"github.com/rs/cors"
+	"go.uber.org/zap"
 )
 
 // TODO Write YAML Parsing for environment variables
 
 func main() {
-
 	// parse YAML File to read in secrets
 	// Initialize state
 	// TODO Separate the YAML Loading from the value setting
@@ -32,15 +31,17 @@ func main() {
 	}
 
 	globals.Myapp = globals.App{}
+	globals.Myapp.InitializeLogger()
 
-	globals.Myapp.Parse_from_YAML(YAML_SECRETS_PATH)
-	log.Println("[INIT] YAML Parsed successfully")
+	globals.Myapp.ParseFromYAML(YAML_SECRETS_PATH)
 
 	// Initialize the Github Client
 	// globals.Myapp.Initialize_github_client()
 
 	// Initialize the database
-	globals.Myapp.Initialize_database()
+	globals.Myapp.InitializeDatabase()
+
+	// Initialize Logger
 
 	// Serve!
 	// TODO use Higher-Order Functions to generate this response function
@@ -49,26 +50,39 @@ func main() {
 	mux := http.NewServeMux()
 	// Utilised routes
 	mux.HandleFunc("POST /Github", handlers.WebhookHandler)
-	mux.HandleFunc("GET /leaderboard_mat", handlers.Leaderboard_materialized)
-	mux.HandleFunc("GET /records", handlers.Leaderboard_userspecific)
+	mux.HandleFunc("GET /leaderboard_mat", handlers.LeaderboardMaterialized)
+	mux.HandleFunc("GET /records", handlers.LeaderboardUserSpecific)
 
 	// UwU Route
 	mux.HandleFunc("GET /ping", handlers.PingHandler)
 	mux.HandleFunc("/timer", handlers.TimerHandler)
 
 	// Unutilised routes
-	mux.HandleFunc("GET /lb_all", handlers.Leaderboard_allrecords)
+	mux.HandleFunc("GET /lb_all", handlers.LeaderboardAllRecords)
 	mux.HandleFunc("GET /leaderboard", handlers.Leaderboard_nonmaterialized)
-	log.Println("[INIT] Registered all routes")
+	globals.Myapp.SugaredLogger.Infow("Registered all routes",
+		zap.Strings("scope", []string{"INIT"}),
+	)
+
+	globals.Myapp.SugaredLogger.Infow("Registered all routes",
+		zap.Strings("scope", []string{"INIT"}),
+	)
 
 	// NOTE: Stopped servers for testing
 	handler := cors.Default().Handler(mux)
-	log.Println("[INIT] Initialized CORS")
-	log.Println("[INIT] Starting Web Server")
+	globals.Myapp.SugaredLogger.Infow("Initialized CORS",
+		zap.Strings("scope", []string{"INIT"}),
+	)
+
+	globals.Myapp.SugaredLogger.Infow("Starting Web Server",
+		zap.Strings("scope", []string{"INIT"}),
+	)
+
 	err := http.ListenAndServe("0.0.0.0:3000", handler)
 
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		globals.Myapp.SugaredLogger.Errorw("Unable to start server -> %+v", err,
+			zap.Strings("scope", []string{"INIT"}),
+		)
 	}
-
 }

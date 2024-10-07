@@ -3,15 +3,53 @@ package database
 import (
 	"os"
 	"testing"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
+func NewZapProductionLogger() *zap.SugaredLogger {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
+	// Create a custom encoder configuration
+	encoderConfig := zapcore.EncoderConfig{
+		TimeKey:        "timestamp",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "message",
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+
+	// Apply the custom encoder configuration using WithOptions
+	customLogger := logger.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
+		return zapcore.NewCore(
+			zapcore.NewJSONEncoder(encoderConfig), // Custom encoder
+			zapcore.AddSync(os.Stdout),            // Sync to stdout
+			c,                                     // Use the same level as the original core
+		)
+	}))
+	sugar := customLogger.Sugar()
+	sugar.Infof("Initialized Test Logger")
+	return sugar
+}
+
 func TestIssueStorage(t *testing.T) {
+
+	logger := NewZapProductionLogger()
+
 	dbManager := DBManager{}
 
-	if err:= os.Remove("../tests/dev.db"); err != nil {
+	if err := os.Remove("../tests/dev.db"); err != nil {
 		t.Errorf("Failed to remove test db")
 	}
-	dbManager.Init("../tests/dev.db")
+	dbManager.Init("../tests/dev.db", logger)
 
 	dbManager.db.Create(&Repo{URL: "repo 1"})
 	dbManager.db.Create(&Repo{URL: "repo 2"})

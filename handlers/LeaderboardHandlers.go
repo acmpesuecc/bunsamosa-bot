@@ -8,8 +8,8 @@ import (
 	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 )
 
-func Leaderboard_allrecords(response http.ResponseWriter, request *http.Request) {
-	records, err := globals.Myapp.Leaderboard_GetAllRecords()
+func LeaderboardAllRecords(response http.ResponseWriter, request *http.Request) {
+	records, err := globals.Myapp.LeaderboardGetAllRecords()
 	if err != nil {
 		log.Println("[ERR][LEADERBOARD_HANDLER] Could not get all records ->", err)
 		response.WriteHeader(http.StatusInternalServerError)
@@ -45,7 +45,7 @@ func Leaderboard_nonmaterialized(response http.ResponseWriter, request *http.Req
 	}
 }
 
-func Leaderboard_materialized(response http.ResponseWriter, request *http.Request) {
+func LeaderboardMaterialized(response http.ResponseWriter, request *http.Request) {
 
 	records, err := globals.Myapp.Leaderboard_GetMaterialized()
 	if err != nil {
@@ -64,7 +64,7 @@ func Leaderboard_materialized(response http.ResponseWriter, request *http.Reques
 	}
 }
 
-func Leaderboard_userspecific(response http.ResponseWriter, request *http.Request) {
+func LeaderboardUserSpecific(response http.ResponseWriter, request *http.Request) {
 	queryParams := request.URL.Query()
 	user := queryParams.Get("user")
 	if user == "" {

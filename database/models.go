@@ -1,9 +1,13 @@
 package database
 
-import "gorm.io/gorm"
+import (
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
 
 type DBManager struct {
 	db *gorm.DB
+	sugaredLogger *zap.SugaredLogger
 }
 
 type ContributorModel struct {
@@ -52,7 +56,7 @@ type MaintainerRepo struct {
 type Issue struct {
 	ID     int    `gorm:"primaryKey;not null;autoIncrement"`
 	URL    string `gorm:"default:null"`
-	Status bool `gorm:"default:0"`
+	Status bool   `gorm:"default:0"`
 	Closed bool   `gorm:"default:0"`
 
 	// Foreign keys part of Issue
