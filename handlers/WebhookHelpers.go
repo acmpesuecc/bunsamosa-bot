@@ -23,12 +23,15 @@ const defaultAssignment = 45
 const defaultExtension = 30
 
 const bountyPattern = `^!bounty\s+(\d+)`
-const assignPattern = `^!assign\s+@\w+\s+(\d+)`
-const extendPattern = `^!extend\s+(\d+)`
+const assignPattern = `^!assign\s+@\w+(\s+\d+)?`
+const deassignPattern = `^!deassign`
+const withdrawPattern = `^!withdraw`
+const extendPattern = `^!extend(\s+\d+)`
 
 var commandRegex = regexp.MustCompile(`^!\w+`)
 var bountyRegex = regexp.MustCompile(bountyPattern)
 var assignRegex = regexp.MustCompile(assignPattern)
+var deassignRegex = regexp.MustCompile(deassignPattern)
 var extendRegex = regexp.MustCompile(extendPattern)
 
 // function to check what the command is and parse accordingly

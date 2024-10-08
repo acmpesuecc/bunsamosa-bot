@@ -187,10 +187,10 @@ func (manager *DBManager) AssignBounty(
 
 	manager.sugaredLogger.Infow("Creating Contributor Record Model -> ", crm,
 		zap.Strings("scope", []string{"DBMANAGER", "BOUNTY"}),
-)
+	)
 	manager.sugaredLogger.Infow("Beginning Transaction -> ", crm,
-	zap.Strings("scope", []string{"DBMANAGER", "BOUNTY"}),
-)
+		zap.Strings("scope", []string{"DBMANAGER", "BOUNTY"}),
+	)
 
 	manager.db.Transaction(func(tx *gorm.DB) error {
 
@@ -207,8 +207,8 @@ func (manager *DBManager) AssignBounty(
 			return result.Error
 		} else {
 			manager.sugaredLogger.Infow("Successfully Created Contributor Record Model",
-			zap.Strings("scope", []string{"DBMANAGER", "BOUNTY"}),
-		)
+				zap.Strings("scope", []string{"DBMANAGER", "BOUNTY"}),
+			)
 		}
 
 		// default case - assume the user does not exist
@@ -280,8 +280,8 @@ func (manager *DBManager) GetAllRecords() ([]ContributorRecordModel, error) {
 		return nil, fetch_result.Error
 	} else {
 		manager.sugaredLogger.Infow("Successfully Fetched all records",
-		zap.Strings("scope", []string{"DBMANAGER", "RECORDS"}),
-)
+			zap.Strings("scope", []string{"DBMANAGER", "RECORDS"}),
+		)
 
 		return records, nil
 	}
@@ -305,8 +305,8 @@ func (manager *DBManager) GetUserRecords(contributor string) ([]ContributorRecor
 
 	if fetch_result.Error != nil {
 		manager.sugaredLogger.Errorw("Could not fetch records for", contributor, " ->", fetch_result.Error,
-				zap.Strings("scope", []string{"DBMANAGER", "USER-SPECIFIC"}),
-)
+			zap.Strings("scope", []string{"DBMANAGER", "USER-SPECIFIC"}),
+		)
 
 		return nil, fetch_result.Error
 	} else {
@@ -333,20 +333,20 @@ func (manager *DBManager) GetLeaderboard() ([]ContributorModel, error) {
 
 	// Fetch from the database
 	manager.sugaredLogger.Infow("Fetching All Records",
-	zap.Strings("scope", []string{"DBMANAGER", "LEADERBOARD"}),
-)
+		zap.Strings("scope", []string{"DBMANAGER", "LEADERBOARD"}),
+	)
 
 	fetch_result := manager.db.Raw(leaderboard_query).Scan(&records)
 
 	if fetch_result.Error != nil {
 		manager.sugaredLogger.Errorw("Could not fetch all records ->", fetch_result.Error,
-		zap.Strings("scope", []string{"DBMANAGER", "LEADERBOARD"}),
-)
+			zap.Strings("scope", []string{"DBMANAGER", "LEADERBOARD"}),
+		)
 		return nil, fetch_result.Error
 	} else {
 		manager.sugaredLogger.Infow("[DBMANAGER|LEADERBOARD] Successfully Fetched all records",
-		zap.Strings("scope", []string{"DBMANAGER", "LEADERBOARD"}),
-)
+			zap.Strings("scope", []string{"DBMANAGER", "LEADERBOARD"}),
+		)
 
 		return records, nil
 	}
@@ -363,7 +363,7 @@ func (manager *DBManager) GetLeaderboardMat() ([]ContributorModel, error) {
 	if fetch_result.Error != nil {
 		manager.sugaredLogger.Errorw("Could not fetch all records ->", fetch_result.Error,
 			zap.Strings("scope", []string{"DBMANAGER", "MUX-LB"}),
-)
+		)
 		return nil, fetch_result.Error
 	} else {
 		manager.sugaredLogger.Infow("Successfully Fetched all records",
@@ -377,8 +377,8 @@ func (manager *DBManager) CheckIsMaintainer(user_name string) (bool, error) {
 	var maintainer MaintainerModel
 
 	manager.sugaredLogger.Infow("Checking if %s is a maintainer\n", user_name,
-	zap.Strings("scope", []string{"DBMANAGER", "CHECK_MAINTAINER"}),
-)
+		zap.Strings("scope", []string{"DBMANAGER", "CHECK_MAINTAINER"}),
+	)
 
 	result := manager.db.Limit(1).First(&maintainer, "username like ?", user_name)
 
@@ -391,13 +391,13 @@ func (manager *DBManager) CheckIsMaintainer(user_name string) (bool, error) {
 		}
 		manager.sugaredLogger.Errorw("Could not check maintainer ->", result.Error,
 			zap.Strings("scope", []string{"DBMANAGER", "CHECK_MAINTAINER"}),
-)
+		)
 		return false, result.Error
 	}
 
 	manager.sugaredLogger.Infow("%s IS a maintainer\n", user_name,
-	zap.Strings("scope", []string{"DBMANAGER", "CHECK_MAINTAINER"}),
-)
+		zap.Strings("scope", []string{"DBMANAGER", "CHECK_MAINTAINER"}),
+	)
 	return true, nil
 }
 
@@ -414,8 +414,8 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string,
 	var contributorData Contributor
 
 	manager.sugaredLogger.Infow("Obtaining the id of repo %q from the Repos table\n", repoURL,
-	zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
-)
+		zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
+	)
 	// Fetch the record with matching conditions or create a new record
 	result := manager.db.First(&repoData, &Repo{URL: repoURL})
 	if result.Error != nil {
@@ -426,8 +426,8 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string,
 	}
 
 	manager.sugaredLogger.Infow("Obtaining the id of issue %q from the Issues table\n", issueURL,
-	zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
-)
+		zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
+	)
 	// Fetch the record with matching conditions or create a new record
 	result = manager.db.FirstOrCreate(&issueData, &Issue{URL: issueURL, RepoID: repoData.ID})
 	if result.Error != nil {
@@ -475,13 +475,14 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string,
 	}
 
 	manager.sugaredLogger.Infow("Storing assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.ID, contributorHandle, contributorData.ID,
-	zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
-)
+		zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
+	)
+
 	result = manager.db.FirstOrCreate(&contributorIssue, ContributorIssue{IssueID: issueData.ID})
 	if result.Error != nil {
 		manager.sugaredLogger.Errorw("Could not obtain issue with IssueId %d from the ContributorIssues table", issueData.ID,
-		zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
-	)
+			zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
+		)
 		return false, result.Error
 	}
 
@@ -490,8 +491,8 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string,
 		result = tx.Save(&contributorIssue)
 		if result.Error != nil {
 			manager.sugaredLogger.Errorw("Could not store assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.ID, contributorHandle, contributorData.ID,
-			zap.Strings("scope", []string{"DBMANAGER", "ASSIGN", "TRANSACTION"}),
-		)
+				zap.Strings("scope", []string{"DBMANAGER", "ASSIGN", "TRANSACTION"}),
+			)
 			return result.Error
 		}
 
@@ -574,7 +575,7 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 		result = tx.Save(&contributorIssue)
 		if result.Error != nil {
 			manager.sugaredLogger.Errorw("Could not remove assignment of issue with IssueId %d from contributor with ContributorID %d\n", issueData.ID, contributorIssue.ContributorID,
-				zap.Strings("scope", []string{"DBMANAGER", "DEASSIGN", "TRANSACTION" }),
+				zap.Strings("scope", []string{"DBMANAGER", "DEASSIGN", "TRANSACTION"}),
 			)
 			return result.Error
 		}
@@ -584,7 +585,7 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 		result = tx.Save(&issueData)
 		if result.Error != nil {
 			manager.sugaredLogger.Errorw("Could not update status of issue with IssueId %d\n", issueData.ID,
-				zap.Strings("scope", []string{"DBMANAGER", "DEASSIGN" ,"TRANSACTION"}),
+				zap.Strings("scope", []string{"DBMANAGER", "DEASSIGN", "TRANSACTION"}),
 			)
 			return result.Error
 		}
@@ -666,7 +667,7 @@ func (manager *DBManager) WithdrawIssue(issueURL string, contributorHandle strin
 		transaction_result = tx.Save(&issueData)
 		if transaction_result.Error != nil {
 			manager.sugaredLogger.Errorw("Failed to update IssueID %q(%q) status to false(available)\n", issueData.ID, issueURL,
-				zap.Strings("scope", []string{"DBMANAGER", "WITHDRAW", "TRANSACTION" }),
+				zap.Strings("scope", []string{"DBMANAGER", "WITHDRAW", "TRANSACTION"}),
 			)
 			return transaction_result.Error
 		}

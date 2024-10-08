@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,7 +13,14 @@ import (
 	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	ghwebhooks "github.com/go-playground/webhooks/v6/github"
 	v3 "github.com/google/go-github/v47/github"
+	"go.uber.org/zap"
 )
+
+// handlers global constants
+const TimerDaemonURL = "http://localhost:3000/"
+
+// Setting logger in main.go
+var SugaredLogger *zap.SugaredLogger
 
 func newIssueHandler(parsed_hook *ghwebhooks.IssuesPayload) {
 
@@ -34,6 +43,80 @@ func newIssueCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 
 	log.Printf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Comment.Body)
 
+	// MAINTAINER:  !assgin @handle MINS/default: 45
+	// MAINTAINER:  !deassign
+	// CONTRIBUTOR: !withdraw
+
+	issue_comment := parsed_hook.Comment.Body
+
+	comment_command := getCommand(issue_comment)
+
+	if strings.Contains(comment_command, "assign") {
+		contributorHandle, time, success := parseAssign(comment_command)
+		if success {
+			db_success, err := globals.Myapp.Dbmanager.AssignIssue(
+				parsed_hook.Comment.IssueURL,
+				parsed_hook.Sender.Login,
+				parsed_hook.Repository.URL,
+			)
+
+			if err != nil {
+				SugaredLogger.Errorw("Failed to assign issue to %+v",
+					parsed_hook.Sender.Login,
+					zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+				)
+			}
+
+			if db_success {
+				// http.Post(url string, contentType string, body io.Reader)
+
+				requst := TimeoutEvent{
+					EventID:     contributorHandle,
+					TimeoutSecs: time,
+					Emit:        fmt.Sprintf("Assign issue to %s", contributorHandle),
+				}
+				request_bytes , err:= json.Marshal(requst)
+				if err != nil {
+					SugaredLogger.Errorw("Failed to assign issue to %+v. Failed to marshal bytes for request to Timer-Daemon",
+						parsed_hook.Sender.Login,
+						zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+					)
+				}
+
+				// Sending a POST request to the Timer Daemon to emit
+				// the request
+				http.Post(TimerDaemonURL, "application/json", bytes.NewReader(request_bytes))
+
+				// http.Post(TimerDaemonURL, "application/json", body io.Reader)
+			} else {
+				SugaredLogger.Errorw("Failed to assign issue to %+v",
+					parsed_hook.Sender.Login,
+					zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+				)
+			}
+
+		} else {
+			SugaredLogger.Errorw("Failed to assign issue to %v",
+				parsed_hook.Sender.Login,
+				zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+			)
+		}
+	} else if strings.Contains(comment_command, "deassign") {
+		//todo
+	} else if strings.Contains(comment_command, "withdraw") {
+		//todo
+
+		// first query db and check
+
+	} else if strings.Contains(comment_command, "extend") {
+		//todo
+	} else {
+		// Invalid command
+		SugaredLogger.Errorw("Invalid bot command",
+			zap.Strings("scope", []string{"ISSUE COMMENT"}),
+		)
+	}
+
 	is_maintainer, err := globals.Myapp.Dbmanager.CheckIsMaintainer(strings.ToLower(parsed_hook.Sender.Login))
 	if err != nil {
 		log.Printf("[ERROR][BOUNTY] Could not check is_maintainer for issue %q\n", parsed_hook.Issue.Title)
@@ -41,8 +124,8 @@ func newIssueCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 		log.Printf("[ISSUE_COMMENT_HANDLE] A maintainer %q has commented on issue %q with title %q\n", parsed_hook.Sender.Login, parsed_hook.Issue.URL, parsed_hook.Issue.Title)
 	}
 
-	if is_maintainer {}
-
+	if is_maintainer {
+	}
 }
 
 func newPRHandler(parsed_hook *ghwebhooks.PullRequestPayload) {

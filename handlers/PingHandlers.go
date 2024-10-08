@@ -13,6 +13,37 @@ type Event struct {
 	TimeInitiated time.Time `json:"time_initiated"`
 }
 
+type TimeoutEvent struct {
+	EventID     string `json:"event_id"`
+	TimeoutSecs int    `json:"timeout_seconds"`
+	Emit        string `json:"emit"`
+}
+
+// This is the response that's sent to the webhook
+type TimeoutMessage struct {
+	EventID       string `json:"event_id"`
+	Message       string `json:"message"`
+	TimeInitiated string `json:"time_initiated"`
+}
+
+// Input cancel event struct
+type CancelEvent struct {
+	EventID string `json:"event_id"`
+}
+
+type CancelResponse struct {
+	Message string `json:"message"`
+}
+
+type RemainingEvent struct {
+	EventID string `json:"event_id"`
+}
+
+type RemainingResponse struct {
+	EventID       string `json:"event_id"`
+	TimeRemaining string `json:"time_remaining"`
+}
+
 func PingHandler(response http.ResponseWriter, request *http.Request) {
 	log.Println("[PING] Received Ping request!")
 	response.Write([]byte("Pong UwU"))

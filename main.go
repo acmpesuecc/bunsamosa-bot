@@ -41,7 +41,8 @@ func main() {
 	// Initialize the database
 	globals.Myapp.InitializeDatabase()
 
-	// Initialize Logger
+	// Initialize logger for handlers
+	handlers.SugaredLogger = globals.Myapp.SugaredLogger
 
 	// Serve!
 	// TODO use Higher-Order Functions to generate this response function
