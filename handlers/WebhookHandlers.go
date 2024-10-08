@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	// "github.com/go-playground/webhooks/v6"
@@ -17,12 +18,12 @@ import (
 )
 
 // handlers global constants
-const TimerDaemonURL = "http://localhost:3000/"
+const TimerDaemonURL = "http://localhost:3000"
 
 // Setting logger in main.go
 var SugaredLogger *zap.SugaredLogger
 
-func newIssueHandler(parsed_hook *ghwebhooks.IssuesPayload) {
+func newIssueHandler(parsedHook *ghwebhooks.IssuesPayload) {
 
 	// Generate a New Comment - Text is Customizable
 
@@ -30,101 +31,349 @@ func newIssueHandler(parsed_hook *ghwebhooks.IssuesPayload) {
 	response := "Thank you for opening this issue! A Maintainer will review it soon!"
 	comment := v3.IssueComment{Body: &response}
 
-	_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsed_hook.Repository.Owner.Login, parsed_hook.Repository.Name, int(parsed_hook.Issue.Number), &comment)
+	_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
 
 	if err != nil {
-		log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)
+		log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 	} else {
-		log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)
+		log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 	}
 }
 
-func newIssueCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
+func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 
-	log.Printf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Comment.Body)
+	log.Printf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title, parsedHook.Comment.Body)
 
 	// MAINTAINER:  !assgin @handle MINS/default: 45
 	// MAINTAINER:  !deassign
 	// CONTRIBUTOR: !withdraw
 
-	issue_comment := parsed_hook.Comment.Body
+	issue_comment := parsedHook.Comment.Body
 
-	comment_command := getCommand(issue_comment)
+	commentCommand := getCommand(issue_comment)
 
-	if strings.Contains(comment_command, "assign") {
-		contributorHandle, time, success := parseAssign(comment_command)
+	isMaintainer, err := globals.Myapp.Dbmanager.CheckIsMaintainer(strings.ToLower(parsedHook.Sender.Login))
+	if err != nil {
+		SugaredLogger.Errorw("Could not check is_maintainer ->", err,
+			zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "CHECK_MAINTAINER"}),
+		)
+		return
+	}
+
+	if strings.Contains(commentCommand, "assign") && isMaintainer {
+		contributorHandle, time, success := parseAssign(commentCommand)
 		if success {
 			db_success, err := globals.Myapp.Dbmanager.AssignIssue(
-				parsed_hook.Comment.IssueURL,
-				parsed_hook.Sender.Login,
-				parsed_hook.Repository.URL,
+				parsedHook.Issue.URL,
+				parsedHook.Sender.Login,
+				parsedHook.Repository.URL,
 			)
 
 			if err != nil {
-				SugaredLogger.Errorw("Failed to assign issue to %+v",
-					parsed_hook.Sender.Login,
-					zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+				SugaredLogger.Errorw("Failed to assign issue to %q",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
 				)
 			}
 
 			if db_success {
 				// http.Post(url string, contentType string, body io.Reader)
+				_, _, err = globals.Myapp.RuntimeClient.Issues.AddAssignees(
+					context.TODO(),
+					parsedHook.Repository.Owner.Login,
+					parsedHook.Repository.Name,
+					int(parsedHook.Issue.Number),
+					[]string{contributorHandle},
+				)
+				if err != nil {
+					SugaredLogger.Errorw("Failed to assign issue to %+v. Unable to use Github RuntimeClient",
+						parsedHook.Sender.Login,
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "GH_API"}),
+					)
+				}
 
-				requst := TimeoutEvent{
+				request := TimeoutEvent{
 					EventID:     contributorHandle,
 					TimeoutSecs: time,
 					Emit:        fmt.Sprintf("Assign issue to %s", contributorHandle),
 				}
-				request_bytes , err:= json.Marshal(requst)
+				requestBytes, err := json.Marshal(request)
+
 				if err != nil {
-					SugaredLogger.Errorw("Failed to assign issue to %+v. Failed to marshal bytes for request to Timer-Daemon",
-						parsed_hook.Sender.Login,
-						zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+					SugaredLogger.Errorw("Failed to assign issue to %q. Failed to marshal bytes for request to Timer-Daemon",
+						parsedHook.Sender.Login,
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
 					)
 				}
 
+				// NOTE:
 				// Sending a POST request to the Timer Daemon to emit
-				// the request
-				http.Post(TimerDaemonURL, "application/json", bytes.NewReader(request_bytes))
+				// after "time" _seconds_
+				//
+				// FIX:
+				// Need to handle errors from the post requests, this requst
+				// assumes that the timer has been initiated sucessuflly
+				http.Post(
+					TimerDaemonURL+"/register",
+					"application/json",
+					bytes.NewReader(requestBytes),
+				)
 
-				// http.Post(TimerDaemonURL, "application/json", body io.Reader)
 			} else {
 				SugaredLogger.Errorw("Failed to assign issue to %+v",
-					parsed_hook.Sender.Login,
-					zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+				)
+			}
+		} else {
+			SugaredLogger.Errorw("Failed to assign issue to %v",
+				parsedHook.Sender.Login,
+				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+			)
+		}
+	} else if strings.Contains(commentCommand, "deassign") && isMaintainer {
+		//todo
+		dbSuccess, err := globals.Myapp.Dbmanager.DeassignIssue(
+			parsedHook.Issue.URL,
+		)
+		if err != nil {
+			SugaredLogger.Errorw("Failed to deassign issue to %+q",
+				parsedHook.Issue.Assignee.Login,
+				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+			)
+		}
+		if dbSuccess {
+			_, _, err := globals.Myapp.RuntimeClient.Issues.RemoveAssignees(
+				context.TODO(),
+				parsedHook.Repository.Owner.Login,
+				parsedHook.Repository.URL,
+				int(parsedHook.Issue.Number),
+				[]string{parsedHook.Issue.Assignee.Login},
+			)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to deassign issue to %+v. Unable to use Github RuntimeClient",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE", "GH_API"}),
 				)
 			}
 
+			cancel_request := CancelEvent{
+				EventID: parsedHook.Issue.Assignee.Login,
+			}
+
+			cancel_request_bytes, err := json.Marshal(cancel_request)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to deassign issue to %q. Failed to marshal bytes for request to Timer-Daemon",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+				)
+			}
+
+			// FIX:
+			// Need to handle errors from the post requests, this requst
+			// assumes that the timer has been initiated sucessuflly
+			http.Post(
+				TimerDaemonURL+"/cancel",
+				"application/json",
+				bytes.NewReader(cancel_request_bytes),
+			)
+
 		} else {
-			SugaredLogger.Errorw("Failed to assign issue to %v",
-				parsed_hook.Sender.Login,
-				zap.Strings("scope", []string{"PR_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+			SugaredLogger.Errorw("Failed to deassign issue to %+v",
+				parsedHook.Sender.Login,
+				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
 			)
 		}
-	} else if strings.Contains(comment_command, "deassign") {
-		//todo
-	} else if strings.Contains(comment_command, "withdraw") {
-		//todo
 
+	} else if strings.Contains(commentCommand, "withdraw") {
+		//todo
 		// first query db and check
+		contributorHandle := parsedHook.Sender.Login
 
-	} else if strings.Contains(comment_command, "extend") {
-		//todo
+		db_success, err := globals.Myapp.Dbmanager.WithdrawIssue(
+			parsedHook.Issue.URL,
+			contributorHandle,
+		)
+		if err != nil {
+			SugaredLogger.Errorw("Failed to withdraw issue to %+q",
+				parsedHook.Issue.Assignee.Login,
+				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE"}),
+			)
+		}
+
+		if db_success {
+			_, _, err := globals.Myapp.RuntimeClient.Issues.RemoveAssignees(
+				context.TODO(),
+				parsedHook.Repository.Owner.Login,
+				parsedHook.Repository.URL,
+				int(parsedHook.Issue.Number),
+				[]string{parsedHook.Issue.Assignee.Login},
+			)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to withdraw issue to %+v. Unable to use Github RuntimeClient",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE", "GH_API"}),
+				)
+			}
+
+			cancelledRequest := CancelEvent{
+				EventID: parsedHook.Issue.Assignee.Login,
+			}
+
+			cancelled_request_bytes, err := json.Marshal(cancelledRequest)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to withdraw issue to %q. Failed to marshal bytes for request to Timer-Daemon",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE"}),
+				)
+			}
+
+			// FIX:
+			// Need to handle errors from the post requests, this requst
+			// assumes that the timer has been initiated sucessuflly
+			http.Post(
+				TimerDaemonURL+"/cancel",
+				"application/json",
+				bytes.NewReader(cancelled_request_bytes),
+			)
+
+		} else {
+			SugaredLogger.Errorw("Failed to withdraw issue to %+q",
+				parsedHook.Issue.Assignee.Login,
+				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE"}),
+			)
+		}
+
+	} else if strings.Contains(commentCommand, "extend") && isMaintainer {
+		// - [x] First get the ongoing timer and its remaining seconds
+		// since it has initially been requested by /register on
+		// the timer dameon
+		//
+		// once done, we increment the current remaining seconds
+		// and add the parsed seconds to this.
+		//
+		// Before extending on the timer on the Timer-Dameon, we
+		// stop the ongoing timer remotely by hitting /cancel
+		// and proceed to register another timer with the
+		// incremented time
+
+		extraTime, success := parseExtend(commentCommand)
+
+		if success {
+
+			currentContributorHandle := parsedHook.Issue.Assignee.Login
+
+			remainingRequest, err := json.Marshal(&RemainingEvent{
+				EventID: currentContributorHandle,
+			})
+			if err != nil {
+				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
+
+			// NOTE:
+			// Get the current reamining time
+			response, err := http.Post(
+				TimerDaemonURL+"/remaining",
+				"application/json",
+				bytes.NewReader(remainingRequest),
+			)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE", "TIMER_ERROR"}),
+				)
+			}
+
+			var responseBodyBytes []byte
+			_, err = response.Body.Read(responseBodyBytes)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
+
+			var remainingResponse RemainingResponse
+			json.Unmarshal(responseBodyBytes, &remainingResponse)
+
+			remainingTime, err := strconv.Atoi(remainingResponse.TimeRemaining)
+			updatedTime := remainingTime + extraTime
+
+			cancelTimerRequest, err := json.Marshal(&CancelEvent{
+				EventID: currentContributorHandle,
+			})
+			if err != nil {
+				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
+
+			// FIX: (On saturn fork and here)
+			// the current model is in an assumption that the request goes
+			// through
+			// NOTE:
+			// Cancel ongoing timer at the Tiemr Daemon
+			http.Post(TimerDaemonURL+"/cancel", "application/json", bytes.NewReader(cancelTimerRequest))
+			if err != nil {
+				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE", "TIMER_CANCEL_ERROR"}),
+				)
+			}
+
+			// NOTE: for future after implementation on Saturn
+			// _, err = cancelResponse.Body.Read(responseBodyBytes)
+			// if err != nil {
+			// 	SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+			// 		parsedHook.Sender.Login,
+			// 		zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE", "TIMER_ERROR"}),
+			// 	)
+			// }
+			// var cancelResponseResult CancelResponse
+			// json.Unmarshal(responseBodyBytes, &cancelResponseResult)
+			// // TODO: Handle errors in this section
+
+			timeoutEventRequest, err := json.Marshal(&TimeoutEvent{
+				EventID:     currentContributorHandle,
+				TimeoutSecs: updatedTime,
+				Emit:        fmt.Sprintf("Assign issue to %s", currentContributorHandle),
+			})
+			if err != nil {
+				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
+
+			// NOTE:
+			// Register a new Event with the update time
+			// at the Timer-Dameon
+			//
+			// FIX:
+			// Need to handle errors from the post requests, this requst
+			// assumes that the timer has been initiated sucessuflly
+			http.Post(
+				TimerDaemonURL+"/register",
+				"application/json",
+				bytes.NewReader(timeoutEventRequest),
+			)
+
+		} else {
+			SugaredLogger.Errorw("Failed to extend issue for %v",
+				parsedHook.Sender.Login,
+				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+			)
+		}
+
 	} else {
 		// Invalid command
 		SugaredLogger.Errorw("Invalid bot command",
-			zap.Strings("scope", []string{"ISSUE COMMENT"}),
+			zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER"}),
 		)
-	}
-
-	is_maintainer, err := globals.Myapp.Dbmanager.CheckIsMaintainer(strings.ToLower(parsed_hook.Sender.Login))
-	if err != nil {
-		log.Printf("[ERROR][BOUNTY] Could not check is_maintainer for issue %q\n", parsed_hook.Issue.Title)
-	} else {
-		log.Printf("[ISSUE_COMMENT_HANDLE] A maintainer %q has commented on issue %q with title %q\n", parsed_hook.Sender.Login, parsed_hook.Issue.URL, parsed_hook.Issue.Title)
-	}
-
-	if is_maintainer {
 	}
 }
 
@@ -146,10 +395,10 @@ func newPRHandler(parsed_hook *ghwebhooks.PullRequestPayload) {
 	}
 }
 
-func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
+func newPRCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 	// Parse the current webhook
 
-	is_maintainer, err := globals.Myapp.Dbmanager.CheckIsMaintainer(strings.ToLower(parsed_hook.Sender.Login))
+	is_maintainer, err := globals.Myapp.Dbmanager.CheckIsMaintainer(strings.ToLower(parsedHook.Sender.Login))
 	if err != nil {
 		log.Println("[ERROR][BOUNTY] Could not check is_maintainer ->", err)
 		return
@@ -157,18 +406,18 @@ func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 
 	if is_maintainer {
 		log.Println("A Maintainer Commented -> ")
-		log.Printf("[PR_COMMENTHANDLER] Successfully Commented on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)
+		log.Printf("[PR_COMMENTHANDLER] Successfully Commented on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 
 		// parse the comment here to give a bounty
-		bounty, valid := parseBountyPoints(parsed_hook.Comment.Body)
+		bounty, valid := parseBountyPoints(parsedHook.Comment.Body)
 
 		if valid {
 
 			// Assign the bounty points
 			err := globals.Myapp.Dbmanager.AssignBounty(
-				parsed_hook.Sender.Login,
-				parsed_hook.Issue.User.Login,
-				parsed_hook.Issue.PullRequest.HTMLURL,
+				parsedHook.Sender.Login,
+				parsedHook.Issue.User.Login,
+				parsedHook.Issue.PullRequest.HTMLURL,
 				bounty,
 			)
 			if err != nil {
@@ -176,23 +425,23 @@ func newPRCommentHandler(parsed_hook *ghwebhooks.IssueCommentPayload) {
 				return
 			}
 
-			log.Printf("[PR_COMMENTHANDLER] Successfully Assigned Bounty on Pull Request -> Repository [%s] PR (#%d)[%s] to user %s for %d points\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title, parsed_hook.Issue.User.Login, bounty)
+			log.Printf("[PR_COMMENTHANDLER] Successfully Assigned Bounty on Pull Request -> Repository [%s] PR (#%d)[%s] to user %s for %d points\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title, parsedHook.Issue.User.Login, bounty)
 
-			response := "Assigned " + fmt.Sprint(bounty) + " Bounty points to user @" + parsed_hook.Issue.User.Login + " !"
+			response := "Assigned " + fmt.Sprint(bounty) + " Bounty points to user @" + parsedHook.Issue.User.Login + " !"
 			comment := v3.IssueComment{Body: &response}
 
-			_, _, new_err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsed_hook.Repository.Owner.Login, parsed_hook.Repository.Name, int(parsed_hook.Issue.Number), &comment)
+			_, _, new_err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
 			if new_err != nil {
-				log.Printf("[ERROR] Could not Comment on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)
+				log.Printf("[ERROR] Could not Comment on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 				log.Println("Error ->", new_err)
 			} else {
-				log.Printf("[PRHANDLER] Successfully Commented on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)
+				log.Printf("[PRHANDLER] Successfully Commented on Pull Request -> Repository [%s] PR (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 			}
 
 		}
 
 	} else {
-		log.Printf("[WARN] Someone else commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsed_hook.Repository.FullName, parsed_hook.Issue.Number, parsed_hook.Issue.Title)
+		log.Printf("[WARN] Someone else commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 	}
 	// Return error
 
