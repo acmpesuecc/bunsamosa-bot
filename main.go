@@ -38,6 +38,7 @@ func main() {
 
 	// Initialize logger for handlers
 	handlers.SugaredLogger = globals.Myapp.SugaredLogger
+	handlers.TimerDaemonURL= globals.Myapp.TimerDaemonURL
 
 	// Serve!
 	// TODO use Higher-Order Functions to generate this response function

@@ -36,6 +36,8 @@ type App struct {
 
 	// Sugar Logger for structured logging
 	SugaredLogger *zap.SugaredLogger
+
+	TimerDaemonURL string
 }
 
 var Myapp App
@@ -81,7 +83,9 @@ func (a *App) ParseFromYAML(path string) {
 
 	// Read in the Connection String
 	a.Db_connection_string = yaml_output["dbConnectionString"]
-	// log.Println("[INIT] YAML Parsed successfully")
+
+	a.TimerDaemonURL = yaml_output["timerDaemonURL"]
+
 	a.SugaredLogger.Infow("YAML Parsed successfully", zap.Strings("scope", []string{"INIT"}))
 }
 
@@ -170,7 +174,7 @@ func (a *App) InitializeLogger() {
 	customLogger := logger.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
 		return zapcore.NewCore(
 			zapcore.NewJSONEncoder(encoderConfig), // Custom encoder
-			zapcore.AddSync(os.Stdout),            // Sync to stdout
+			zapcore.AddSync(os.Stderr),            // Sync to stdout
 			c,                                     // Use the same level as the original core
 		)
 	}))

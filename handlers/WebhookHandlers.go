@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
 	// "github.com/go-playground/webhooks/v6"
@@ -18,7 +17,7 @@ import (
 )
 
 // handlers global constants
-const TimerDaemonURL = "http://localhost:3000"
+var TimerDaemonURL string
 
 // Setting logger in main.go
 var SugaredLogger *zap.SugaredLogger
@@ -110,14 +109,51 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				// Sending a POST request to the Timer Daemon to emit
 				// after "time" _seconds_
 				//
-				// FIX:
-				// Need to handle errors from the post requests, this requst
-				// assumes that the timer has been initiated sucessuflly
-				http.Post(
+				response, err := http.Post(
 					TimerDaemonURL+"/register",
 					"application/json",
 					bytes.NewReader(requestBytes),
 				)
+				if err != nil {
+					SugaredLogger.Errorw("Failed to send /register request to TimerDaemon for event_id %s",
+						contributorHandle,
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
+					)
+				}
+
+				var responseBytes []byte
+				_, err = response.Body.Read(responseBytes)
+				if err != nil {
+					SugaredLogger.Errorw("Failed to read response bytes from Timer Daemon for POST /register request event_id %s",
+						contributorHandle,
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
+					)
+				}
+
+				var timeoutResponse TimeoutResponse
+				err = json.Unmarshal(responseBytes, &timeoutResponse)
+				if err != nil {
+					SugaredLogger.Errorw("Failed to unmarshal response bytes from Timer Daemon for POST /register request event_id %s",
+						contributorHandle,
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
+					)
+				}
+
+				if response.StatusCode != http.StatusOK {
+					SugaredLogger.Errorw("POST /register event_id %s response STATUS %d MSG %s",
+						contributorHandle,
+						response.StatusCode,
+						timeoutResponse.Message,
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
+					)
+				} else {
+					SugaredLogger.Infow("POST /register event_id %s response STATUS %d MSG %s",
+						contributorHandle,
+						response.StatusCode,
+						timeoutResponse.Message,
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
+					)
+				}
 
 			} else {
 				SugaredLogger.Errorw("Failed to assign issue to %+v",
@@ -127,12 +163,12 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			}
 		} else {
 			SugaredLogger.Errorw("Failed to assign issue to %v",
-				parsedHook.Sender.Login,
+				contributorHandle,
 				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
 			)
 		}
+
 	} else if strings.Contains(commentCommand, "deassign") && isMaintainer {
-		//todo
 		dbSuccess, err := globals.Myapp.Dbmanager.DeassignIssue(
 			parsedHook.Issue.URL,
 		)
@@ -157,11 +193,11 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				)
 			}
 
-			cancel_request := CancelEvent{
+			cancelRequest := CancelEvent{
 				EventID: parsedHook.Issue.Assignee.Login,
 			}
 
-			cancel_request_bytes, err := json.Marshal(cancel_request)
+			cancelRequestBytes, err := json.Marshal(cancelRequest)
 			if err != nil {
 				SugaredLogger.Errorw("Failed to deassign issue to %q. Failed to marshal bytes for request to Timer-Daemon",
 					parsedHook.Sender.Login,
@@ -169,14 +205,51 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				)
 			}
 
-			// FIX:
-			// Need to handle errors from the post requests, this requst
-			// assumes that the timer has been initiated sucessuflly
-			http.Post(
+			response, err := http.Post(
 				TimerDaemonURL+"/cancel",
 				"application/json",
-				bytes.NewReader(cancel_request_bytes),
+				bytes.NewReader(cancelRequestBytes),
 			)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to send /cancel request to TimerDaemon for event_id %s",
+					parsedHook.Issue.Assignee.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+				)
+			}
+
+			var responseBytes []byte
+			_, err = response.Body.Read(responseBytes)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to read response bytes from Timer Daemon for POST /cancel request event_id %s",
+					parsedHook.Issue.Assignee.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+				)
+			}
+
+			var cancelResponse CancelResponse
+			err = json.Unmarshal(responseBytes, &cancelResponse)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to unmarshal response bytes from Timer Daemon for POST /cancel request event_id %s",
+					parsedHook.Issue.Assignee.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+				)
+			}
+
+			if response.StatusCode != http.StatusOK {
+				SugaredLogger.Errorw("POST /cancel event_id %s response STATUS %d MSG %s",
+					parsedHook.Issue.Assignee.Login,
+					response.StatusCode,
+					cancelResponse.Message,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+				)
+			} else {
+				SugaredLogger.Infow("POST /cancel event_id %s response STATUS %d MSG %s",
+					parsedHook.Issue.Assignee.Login,
+					response.StatusCode,
+					cancelResponse.Message,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+				)
+			}
 
 		} else {
 			SugaredLogger.Errorw("Failed to deassign issue to %+v",
@@ -228,14 +301,45 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				)
 			}
 
-			// FIX:
-			// Need to handle errors from the post requests, this requst
-			// assumes that the timer has been initiated sucessuflly
-			http.Post(
+			response, err := http.Post(
 				TimerDaemonURL+"/cancel",
 				"application/json",
 				bytes.NewReader(cancelled_request_bytes),
 			)
+
+			var responseBytes []byte
+			_, err = response.Body.Read(responseBytes)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to read response bytes from Timer Daemon for POST /cancel request event_id %s",
+					parsedHook.Issue.Assignee.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE"}),
+				)
+			}
+
+			var cancelResponse CancelResponse
+			err = json.Unmarshal(responseBytes, &cancelResponse)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to unmarshal response bytes from Timer Daemon for POST /cancel request event_id %s",
+					parsedHook.Issue.Assignee.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE"}),
+				)
+			}
+
+			if response.StatusCode != http.StatusOK {
+				SugaredLogger.Errorw("POST /cancel event_id %s response STATUS %d MSG %s",
+					parsedHook.Issue.Assignee.Login,
+					response.StatusCode,
+					cancelResponse.Message,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE"}),
+				)
+			} else {
+				SugaredLogger.Infow("POST /cancel event_id %s response STATUS %d MSG %s",
+					parsedHook.Issue.Assignee.Login,
+					response.StatusCode,
+					cancelResponse.Message,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE"}),
+				)
+			}
 
 		} else {
 			SugaredLogger.Errorw("Failed to withdraw issue to %+q",
@@ -245,123 +349,65 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 		}
 
 	} else if strings.Contains(commentCommand, "extend") && isMaintainer {
-		// - [x] First get the ongoing timer and its remaining seconds
-		// since it has initially been requested by /register on
-		// the timer dameon
-		//
-		// once done, we increment the current remaining seconds
-		// and add the parsed seconds to this.
-		//
-		// Before extending on the timer on the Timer-Dameon, we
-		// stop the ongoing timer remotely by hitting /cancel
-		// and proceed to register another timer with the
-		// incremented time
-
 		extraTime, success := parseExtend(commentCommand)
 
 		if success {
 
 			currentContributorHandle := parsedHook.Issue.Assignee.Login
 
-			remainingRequest, err := json.Marshal(&RemainingEvent{
-				EventID: currentContributorHandle,
-			})
-			if err != nil {
-				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
-					parsedHook.Sender.Login,
-					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
-				)
-			}
-
-			// NOTE:
-			// Get the current reamining time
-			response, err := http.Post(
-				TimerDaemonURL+"/remaining",
-				"application/json",
-				bytes.NewReader(remainingRequest),
-			)
-			if err != nil {
-				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
-					parsedHook.Sender.Login,
-					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE", "TIMER_ERROR"}),
-				)
-			}
-
-			var responseBodyBytes []byte
-			_, err = response.Body.Read(responseBodyBytes)
-			if err != nil {
-				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
-					parsedHook.Sender.Login,
-					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
-				)
-			}
-
-			var remainingResponse RemainingResponse
-			json.Unmarshal(responseBodyBytes, &remainingResponse)
-
-			remainingTime, err := strconv.Atoi(remainingResponse.TimeRemaining)
-			updatedTime := remainingTime + extraTime
-
-			cancelTimerRequest, err := json.Marshal(&CancelEvent{
-				EventID: currentContributorHandle,
-			})
-			if err != nil {
-				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
-					parsedHook.Sender.Login,
-					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
-				)
-			}
-
-			// FIX: (On saturn fork and here)
-			// the current model is in an assumption that the request goes
-			// through
-			// NOTE:
-			// Cancel ongoing timer at the Tiemr Daemon
-			http.Post(TimerDaemonURL+"/cancel", "application/json", bytes.NewReader(cancelTimerRequest))
-			if err != nil {
-				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
-					parsedHook.Sender.Login,
-					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE", "TIMER_CANCEL_ERROR"}),
-				)
-			}
-
-			// NOTE: for future after implementation on Saturn
-			// _, err = cancelResponse.Body.Read(responseBodyBytes)
-			// if err != nil {
-			// 	SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
-			// 		parsedHook.Sender.Login,
-			// 		zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE", "TIMER_ERROR"}),
-			// 	)
-			// }
-			// var cancelResponseResult CancelResponse
-			// json.Unmarshal(responseBodyBytes, &cancelResponseResult)
-			// // TODO: Handle errors in this section
-
-			timeoutEventRequest, err := json.Marshal(&TimeoutEvent{
+			extendEventBytes, err := json.Marshal(&ExtendEvent{
 				EventID:     currentContributorHandle,
-				TimeoutSecs: updatedTime,
-				Emit:        fmt.Sprintf("Assign issue to %s", currentContributorHandle),
+				TimeoutSecs: extraTime,
 			})
+
 			if err != nil {
-				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %q",
+				SugaredLogger.Errorw("Failed to marshal bytes for request to Timer-Daemon %s",
 					parsedHook.Sender.Login,
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
 				)
 			}
 
-			// NOTE:
-			// Register a new Event with the update time
-			// at the Timer-Dameon
-			//
-			// FIX:
-			// Need to handle errors from the post requests, this requst
-			// assumes that the timer has been initiated sucessuflly
-			http.Post(
-				TimerDaemonURL+"/register",
-				"application/json",
-				bytes.NewReader(timeoutEventRequest),
-			)
+			response, err := http.Post(TimerDaemonURL+"/extend", "application/json", bytes.NewReader(extendEventBytes))
+			if err != nil {
+				SugaredLogger.Errorw("Failed to send /extend request to TimerDaemon for event_id %s",
+					currentContributorHandle,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
 
+			var responseBytes []byte
+			_, err = response.Body.Read(responseBytes)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to read response bytes from Timer Daemon for POST /extend request event_id %s",
+					currentContributorHandle,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
+
+			var extendEventResponse ExtendResponse
+			err = json.Unmarshal(responseBytes, &extendEventResponse)
+			if err != nil {
+				SugaredLogger.Errorw("Failed to unmarshal response bytes from Timer Daemon for POST /extend request event_id %s",
+					currentContributorHandle,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
+
+			if response.StatusCode != http.StatusOK {
+				SugaredLogger.Errorw("POST /extend event_id %s response STATUS %d MSG %s",
+					currentContributorHandle,
+					response.StatusCode,
+					extendEventResponse.Message,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			} else {
+				SugaredLogger.Infow("POST /extend event_id %s response STATUS %d MSG %s",
+					currentContributorHandle,
+					response.StatusCode,
+					extendEventResponse.Message,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+			}
 		} else {
 			SugaredLogger.Errorw("Failed to extend issue for %v",
 				parsedHook.Sender.Login,
