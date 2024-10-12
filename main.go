@@ -4,21 +4,16 @@ import (
 	"net/http"
 	"os"
 
-	// "github.com/go-playground/webhooks/v6"
-
 	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	"github.com/anirudhRowjee/bunsamosa-bot/handlers"
 	"github.com/rs/cors"
 	"go.uber.org/zap"
 )
 
-// TODO Write YAML Parsing for environment variables
-
 func main() {
-	// parse YAML File to read in secrets
+	// Parse YAML File to read in secrets
 	// Initialize state
 	// TODO Separate the YAML Loading from the value setting
-	// var YAML_SECRETS_PATH string
 	YAML_SECRETS_PATH := ""
 
 	// Check if we're in a development environment
@@ -36,7 +31,7 @@ func main() {
 	globals.Myapp.ParseFromYAML(YAML_SECRETS_PATH)
 
 	// Initialize the Github Client
-	// globals.Myapp.Initialize_github_client()
+	// globals.Myapp.InitializeGithubClient()
 
 	// Initialize the database
 	globals.Myapp.InitializeDatabase()
@@ -69,7 +64,6 @@ func main() {
 		zap.Strings("scope", []string{"INIT"}),
 	)
 
-	// NOTE: Stopped servers for testing
 	handler := cors.Default().Handler(mux)
 	globals.Myapp.SugaredLogger.Infow("Initialized CORS",
 		zap.Strings("scope", []string{"INIT"}),
