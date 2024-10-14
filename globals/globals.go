@@ -64,7 +64,7 @@ func (a *App) ParseFromYAML(path string) {
 
 	// TODO Add error reporting here
 	// log.Println("[SECRETS] YAML Parsing Complete")
-	a.SugaredLogger.Infow("YAML Parsing Complete", zap.Strings("scope", []string{"SECRETS"}))
+	a.SugaredLogger.Infof("YAML Parsing Complete", zap.Strings("scope", []string{"SECRETS"}))
 
 	a.CertPath = yaml_output["certPath"]
 	a.WebhookSecret = yaml_output["webhookSecret"]
@@ -86,13 +86,13 @@ func (a *App) ParseFromYAML(path string) {
 
 	a.TimerDaemonURL = yaml_output["timerDaemonURL"]
 
-	a.SugaredLogger.Infow("YAML Parsed successfully", zap.Strings("scope", []string{"INIT"}))
+	a.SugaredLogger.Infof("YAML Parsed successfully", zap.Strings("scope", []string{"INIT"}))
 }
 
 func (a *App) InitializeGithubClient() {
 	// Initialize the Github Client and AppTransport
 	// log.Println("[CLIENT] Initializing Github Client")
-	a.SugaredLogger.Infow("Initialized Github Client", zap.Strings("scope", []string{"CLIENT"}))
+	a.SugaredLogger.Infof("Initialized Github Client", zap.Strings("scope", []string{"CLIENT"}))
 
 	app_transport, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(a.AppID), a.CertPath)
 
@@ -101,22 +101,23 @@ func (a *App) InitializeGithubClient() {
 
 	if err != nil {
 		// log.Println("[ERROR] Could not Create Github App Client")
-		a.SugaredLogger.Panicw("Could not Create Github App Client", zap.String("scope", "ERROR"))
+		a.SugaredLogger.Panicw("Could not Create Github App Client", err, zap.String("scope", "ERROR"))
 		// panic(err)
 	}
+
 	// log.Println("[CLIENT] App Transport Initialized")
-	a.SugaredLogger.Infow("App Transport Initialized", zap.String("scope", "CLIENT"))
+	a.SugaredLogger.Infof("App Transport Initialized", zap.String("scope", "CLIENT"))
 
 	// NOTE Don't forget to install the app in your repository before you do this!
 	// Initialize the installation
 	installation, _, err := v3.NewClient(&http.Client{Transport: app_transport}).Apps.FindOrganizationInstallation(context.TODO(), fmt.Sprint(a.OrgID))
 	if err != nil {
-		// log.Println("[ERROR] Could not Find Organization installation")
-		a.SugaredLogger.Panicw("Could not Find Organization installation", zap.String("scope", "ERROR"))
+		// log.Println("[ERROR] Could not Find Organization installation", err)
+		a.SugaredLogger.Panicw("Could not Find Organization installation", err, zap.String("scope", "ERROR"))
 		panic(err)
 	}
 	// log.Println("[CLIENT] Organization Transport Initialized")
-	a.SugaredLogger.Infow("Organization Transport Initialized", zap.String("scope", "CLIENT"))
+	a.SugaredLogger.Infof("Organization Transport Initialized", zap.String("scope", "CLIENT"))
 
 	// Initialize an authenticated transport for the installation
 	installationID := installation.GetID()
@@ -125,7 +126,7 @@ func (a *App) InitializeGithubClient() {
 	a.RuntimeClient = v3.NewClient(&http.Client{Transport: installation_transport})
 
 	// log.Printf("[CLIENT] successfully initialized GitHub app client, installation-id:%s expected-events:%v\n", fmt.Sprint(installationID), installation.Events)
-	a.SugaredLogger.Infow("Successfully initialized Github app client, installation-id:%s expected-events:%v",
+	a.SugaredLogger.Infof("Successfully initialized Github app client, installation-id:%s expected-events:%v",
 		fmt.Sprint(installationID),
 		installation.Events,
 		zap.String("scope", "CLIENT"),
@@ -147,7 +148,7 @@ func (a *App) InitializeDatabase() {
 	} else {
 		a.Dbmanager = &dbmanager
 		// log.Println("[DATABASE] DB Manager Initialized successfully")
-		a.SugaredLogger.Infow("DB Manager Initialized Successfully", zap.Strings("scope", []string{"DATABASE"}))
+		a.SugaredLogger.Infof("DB Manager Initialized Successfully", zap.Strings("scope", []string{"DATABASE"}))
 	}
 }
 
@@ -179,7 +180,7 @@ func (a *App) InitializeLogger() {
 		)
 	}))
 	sugar := customLogger.Sugar()
-	sugar.Infow("Initialized Logger",
+	sugar.Infof("Initialized Logger",
 		zap.Strings("scope", []string{"INIT"}),
 	)
 	a.SugaredLogger = sugar

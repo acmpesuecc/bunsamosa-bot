@@ -28,7 +28,8 @@ const deassignPattern = `^!deassign`
 const withdrawPattern = `^!withdraw`
 const extendPattern = `^!extend(\s+\d+)`
 
-var commandRegex = regexp.MustCompile(`^!\w+`)
+// var commandRegex = regexp.MustCompile(`^!\w+`)
+var commandRegex = regexp.MustCompile(`^!.+`)
 var bountyRegex = regexp.MustCompile(bountyPattern)
 var assignRegex = regexp.MustCompile(assignPattern)
 var deassignRegex = regexp.MustCompile(deassignPattern)
@@ -40,7 +41,10 @@ func getCommand(comment string) string {
 	comment = strings.TrimLeft(comment, " ")
 	matches := commandRegex.FindStringSubmatch(comment)
 	if len(matches) > 0 {
-		return strings.Trim(matches[0][1:], " ")
+		botCommand := strings.Trim(matches[0], " ")
+		SugaredLogger.Infof("Initial bot command regex match: %s", botCommand)
+		// return strings.Trim(matches[0][1:], " ")
+		return botCommand
 	} else {
 		return ""
 	}
@@ -75,7 +79,6 @@ func parseAssign(comment string) (string, int, bool) {
 	// Use FindStringSubmatch to search for the pattern in the text
 	matches := assignRegex.FindStringSubmatch(comment)
 	if len(matches) > 0 {
-
 		message := strings.Split(strings.Trim(matches[0], " "), " ")
 		var time int
 		var err error
@@ -85,14 +88,16 @@ func parseAssign(comment string) (string, int, bool) {
 		if len(message) > 2 {
 			timeStr := message[2]
 			time, err = strconv.Atoi(timeStr)
+			SugaredLogger.Infof("Parsed assign comment with contributor gihhub handle %s, time %d", handle, time)
 			return handle, time, err == nil
 		} else {
 			// default time
+			SugaredLogger.Infof("Parsed assign comment with contributor gihhub handle %s, time %d", handle, defaultAssignment)
 			return handle, defaultAssignment, true
 		}
 
 	} else {
-
+		SugaredLogger.Errorf("Failed to parsed assign comment: %s ", comment)
 		return "", -1, false
 	}
 }

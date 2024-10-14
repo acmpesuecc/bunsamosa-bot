@@ -31,14 +31,14 @@ func main() {
 	globals.Myapp.ParseFromYAML(YAML_SECRETS_PATH)
 
 	// Initialize the Github Client
-	// globals.Myapp.InitializeGithubClient()
+	globals.Myapp.InitializeGithubClient()
 
 	// Initialize the database
 	globals.Myapp.InitializeDatabase()
 
 	// Initialize logger for handlers
 	handlers.SugaredLogger = globals.Myapp.SugaredLogger
-	handlers.TimerDaemonURL= globals.Myapp.TimerDaemonURL
+	handlers.TimerDaemonURL = globals.Myapp.TimerDaemonURL
 
 	// Serve!
 	// TODO use Higher-Order Functions to generate this response function
@@ -57,20 +57,20 @@ func main() {
 	// Unutilised routes
 	mux.HandleFunc("GET /lb_all", handlers.LeaderboardAllRecords)
 	mux.HandleFunc("GET /leaderboard", handlers.Leaderboard_nonmaterialized)
-	globals.Myapp.SugaredLogger.Infow("Registered all routes",
+	globals.Myapp.SugaredLogger.Infof("Registered all routes",
 		zap.Strings("scope", []string{"INIT"}),
 	)
 
-	globals.Myapp.SugaredLogger.Infow("Registered all routes",
+	globals.Myapp.SugaredLogger.Infof("Registered all routes",
 		zap.Strings("scope", []string{"INIT"}),
 	)
 
 	handler := cors.Default().Handler(mux)
-	globals.Myapp.SugaredLogger.Infow("Initialized CORS",
+	globals.Myapp.SugaredLogger.Infof("Initialized CORS",
 		zap.Strings("scope", []string{"INIT"}),
 	)
 
-	globals.Myapp.SugaredLogger.Infow("Starting Web Server",
+	globals.Myapp.SugaredLogger.Infof("Starting Web Server",
 		zap.Strings("scope", []string{"INIT"}),
 	)
 
