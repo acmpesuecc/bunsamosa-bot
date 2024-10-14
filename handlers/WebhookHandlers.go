@@ -80,13 +80,15 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 
 			if db_success {
 				// http.Post(url string, contentType string, body io.Reader)
-				_, _, err = globals.Myapp.RuntimeClient.Issues.AddAssignees(
+				SugaredLogger.Infof("Attempting to add assignee to Github Issue via Client, Repo owner: %s, Repo name: %s, Issue number: %d, Assignees: %v", parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, parsedHook.Issue.Number, []string{contributorHandle[1:]})
+				ghClientIssue, ghClientResponse, err := globals.Myapp.RuntimeClient.Issues.AddAssignees(
 					context.TODO(),
 					parsedHook.Repository.Owner.Login,
 					parsedHook.Repository.Name,
 					int(parsedHook.Issue.Number),
-					[]string{contributorHandle},
+					[]string{contributorHandle[1:]},
 				)
+				SugaredLogger.Infof("Adding Assignee to Github Issue via Client, Issue: %+v, Response: %+v", ghClientIssue, ghClientResponse)
 				if err != nil {
 					SugaredLogger.Errorf("Failed to assign issue to %+v. Unable to use Github RuntimeClient",
 						contributorHandle, err,
