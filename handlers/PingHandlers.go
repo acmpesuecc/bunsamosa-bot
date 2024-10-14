@@ -96,9 +96,10 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	contributorHandle := timeoutMessage.EventID
 
 	var emitInterface struct {
-		owner  string
-		repo   string
-		number int64
+		Owner      string
+		Commenter string
+		Repo       string
+		Number     int64
 	}
 
 	err = json.Unmarshal([]byte(timeoutMessage.Message), &emitInterface)
@@ -107,19 +108,20 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	commentBody := fmt.Sprintf("Hey @%s! The timer for the @%s to work on the issue has finished, deassign and assing a new contributor or extend the current timer", emitInterface.owner, contributorHandle)
+	commentBody := fmt.Sprintf("Hey @%s! The timer for the %s to work on the issue has finished, deassign and assign a new contributor or extend the current timer",
+		emitInterface.Commenter, contributorHandle)
 	comment := v3.IssueComment{Body: &commentBody}
 	_, _, err = globals.Myapp.RuntimeClient.Issues.CreateComment(
 		context.TODO(),
-		emitInterface.owner,
-		emitInterface.repo,
-		int(emitInterface.number),
+		emitInterface.Owner,
+		emitInterface.Repo,
+		int(emitInterface.Number),
 		&comment,
 	)
 
 	if err != nil {
-		log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.repo, emitInterface.number)
+		log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
 	} else {
-	 	log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.repo, emitInterface.number)
+		log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
 	}
 }

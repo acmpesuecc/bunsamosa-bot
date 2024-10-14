@@ -22,6 +22,13 @@ var TimerDaemonURL string
 // Setting logger in main.go
 var SugaredLogger *zap.SugaredLogger
 
+type EmitMessageFormat struct {
+	Owner      string
+	Commenter string
+	Repo       string
+	Number     int64
+}
+
 func newIssueHandler(parsedHook *ghwebhooks.IssuesPayload) {
 
 	// Generate a New Comment - Text is Customizable
@@ -75,7 +82,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			db_success, err := globals.Myapp.Dbmanager.AssignIssue(
 				parsedHook.Issue.URL,
 				contributorHandle,
-				parsedHook.Repository.URL,
+				parsedHook.Repository.Name,
 			)
 
 			if err != nil {
@@ -86,18 +93,16 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			}
 
 			if db_success {
-				// http.Post(url string, contentType string, body io.Reader)
 				SugaredLogger.Infow(fmt.Sprintf("Attempting to add assignee to Github Issue via Client, Repo owner: %s, Repo name: %s, Issue number: %d, Assignees: %v", parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, parsedHook.Issue.Number, []string{contributorHandle[1:]}),
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
 				)
-				ghClientIssue, ghClientResponse, err := globals.Myapp.RuntimeClient.Issues.AddAssignees(
+				_, _, err = globals.Myapp.RuntimeClient.Issues.AddAssignees(
 					context.TODO(),
 					parsedHook.Repository.Owner.Login,
 					parsedHook.Repository.Name,
 					int(parsedHook.Issue.Number),
 					[]string{contributorHandle[1:]},
 				)
-				SugaredLogger.Infof("Adding Assignee to Github Issue via Client, Issue: %+v, Response: %+v", ghClientIssue, ghClientResponse)
 				if err != nil {
 					SugaredLogger.Errorf("Failed to assign issue to %+v. Unable to use Github RuntimeClient",
 						contributorHandle, err,
@@ -105,15 +110,18 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					)
 				}
 
-				emitJson, err := json.Marshal(struct {
-					owner  string
-					repo   string
-					number int64
-				}{
-					owner:  parsedHook.Repository.Owner.Login,
-					repo:   parsedHook.Repository.FullName,
-					number: parsedHook.Issue.Number,
-				})
+				emitInterface := EmitMessageFormat{
+					Owner:  parsedHook.Repository.Owner.Login,
+					Commenter: parsedHook.Sender.Login,
+					Repo:   parsedHook.Repository.Name,
+					Number: parsedHook.Issue.Number,
+				}
+
+				emitJson, err := json.Marshal(emitInterface)
+
+				if err != nil {
+					log.Println("[ERROR] Failed to marshal message for saturn!!")
+				}
 
 				request := TimeoutEvent{
 					EventID:     contributorHandle,
@@ -147,24 +155,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
 					)
 				}
-
-				// var responseBytes []byte
-				// _, err = response.Body.Read(responseBytes)
-				// if err != nil {
-				// 	SugaredLogger.Errorf("Failed to read response bytes from Timer Daemon for POST /register request event_id %s",
-				// 		err,
-				// 		zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
-				// 	)
-				// }
-
-				// var timeoutResponse TimeoutResponse
-				// err = json.Unmarshal(responseBytes, &timeoutResponse)
-				// if err != nil {
-				// 	SugaredLogger.Errorf("Failed to unmarshal response bytes from Timer Daemon for POST /register request event_id %s",
-				// 		contributorHandle, err,
-				// 		zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
-				// 	)
-				// }
 
 				if response.StatusCode != http.StatusOK {
 					SugaredLogger.Errorf("POST /register event_id %s response STATUS %d",
@@ -213,7 +203,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			_, _, err := globals.Myapp.RuntimeClient.Issues.RemoveAssignees(
 				context.TODO(),
 				parsedHook.Repository.Owner.Login,
-				parsedHook.Repository.URL,
+				parsedHook.Repository.Name,
 				int(parsedHook.Issue.Number),
 				[]string{parsedHook.Issue.Assignee.Login},
 			)
@@ -224,7 +214,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			)
 
 			if err != nil {
-				SugaredLogger.Errorf("Failed to deassign issue from %s. Unable to use Github RuntimeClient",
+				SugaredLogger.Errorf("Failed to deassign issue from %s. Unable to use Github Runtime Client",
 					parsedHook.Issue.Assignee.Login,
 					err,
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE", "GH_API"}),
@@ -232,7 +222,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			}
 
 			cancelRequest := CancelEvent{
-				EventID: parsedHook.Issue.Assignee.Login,
+				EventID: "@"+parsedHook.Issue.Assignee.Login,
 			}
 
 			cancelRequestBytes, err := json.Marshal(cancelRequest)
@@ -298,14 +288,14 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			)
 		}
 
-	} else if strings.Contains(commentCommand, "withdraw") {
+	} else if strings.Contains(commentCommand, "!withdraw") {
 		//todo
 		// first query db and check
 		contributorHandle := parsedHook.Sender.Login
 
 		db_success, err := globals.Myapp.Dbmanager.WithdrawIssue(
 			parsedHook.Issue.URL,
-			contributorHandle,
+			"@"+contributorHandle,
 		)
 		if err != nil {
 			if parsedHook.Issue.Assignee == nil {
@@ -325,7 +315,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			_, _, err := globals.Myapp.RuntimeClient.Issues.RemoveAssignees(
 				context.TODO(),
 				parsedHook.Repository.Owner.Login,
-				parsedHook.Repository.URL,
+				parsedHook.Repository.Name,
 				int(parsedHook.Issue.Number),
 				[]string{parsedHook.Issue.Assignee.Login},
 			)
@@ -337,7 +327,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			}
 
 			cancelledRequest := CancelEvent{
-				EventID: parsedHook.Issue.Assignee.Login,
+				EventID: "@"+parsedHook.Issue.Assignee.Login,
 			}
 
 			cancelled_request_bytes, err := json.Marshal(cancelledRequest)

@@ -437,6 +437,17 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string,
 		return false, result.Error
 	}
 
+	manager.sugaredLogger.Infof("Checking if issue %q has already been assigned\n", issueData.URL,
+		zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
+	)
+	if issueData.Status {
+		manager.sugaredLogger.Errorf("Issue %q has already been assigned to someone else", issueData.URL,
+			zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
+		)
+
+		return false, result.Error
+	}
+
 	manager.sugaredLogger.Infof("Obtaining the id of contributor %q from the Contributors table\n", contributorHandle,
 		zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
 	)
