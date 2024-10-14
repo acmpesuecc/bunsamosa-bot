@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/anirudhRowjee/bunsamosa-bot/globals"
+	v3 "github.com/google/go-github/v47/github"
 )
 
 type Event struct {
@@ -72,8 +77,8 @@ func PingHandler(response http.ResponseWriter, request *http.Request) {
 func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	log.Println("[TIMER] Received Timer request!")
 
-	var event Event
-	err := json.NewDecoder(request.Body).Decode(&event)
+	var timeoutMessage TimeoutMessage
+	err := json.NewDecoder(request.Body).Decode(&timeoutMessage)
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusBadRequest)
 		return
@@ -81,15 +86,40 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 
 	//  time is sent as string ig ?
 	// [GOD]: Yes
-	event.TimeInitiated, err = time.Parse(time.RFC3339, event.TimeInitiated.String())
-	if err != nil {
-		http.Error(response, "Invalid time format", http.StatusBadRequest)
-		return
-	}
 
-	log.Printf("Event received: %+v\n", event)
+	log.Printf("Event received: %+v\n", timeoutMessage)
 
 	// Now we handle as needed
 	// maybe call a deassin heree?
 	// [GOD]: Yes my child
+
+	contributorHandle := timeoutMessage.EventID
+
+	var emitInterface struct {
+		owner  string
+		repo   string
+		number int64
+	}
+
+	err = json.Unmarshal([]byte(timeoutMessage.Message), &emitInterface)
+	if err != nil {
+		log.Println("[ERROR] Failed to unmarshal timeoutMessage.Message")
+		return
+	}
+
+	commentBody := fmt.Sprintf("Hey @%s! The timer for the @%s to work on the issue has finished, deassign and assing a new contributor or extend the current timer", emitInterface.owner, contributorHandle)
+	comment := v3.IssueComment{Body: &commentBody}
+	_, _, err = globals.Myapp.RuntimeClient.Issues.CreateComment(
+		context.TODO(),
+		emitInterface.owner,
+		emitInterface.repo,
+		int(emitInterface.number),
+		&comment,
+	)
+
+	if err != nil {
+		log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.repo, emitInterface.number)
+	} else {
+	 	log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.repo, emitInterface.number)
+	}
 }

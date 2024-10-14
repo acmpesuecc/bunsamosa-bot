@@ -41,7 +41,11 @@ func newIssueHandler(parsedHook *ghwebhooks.IssuesPayload) {
 
 func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 
-	SugaredLogger.Infof("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title, parsedHook.Comment.Body)
+	SugaredLogger.Infow(
+		fmt.Sprintf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n",
+			parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title, parsedHook.Comment.Body),
+		zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN"}),
+	)
 
 	// MAINTAINER:  !assgin @handle MINS/default: 45
 	// MAINTAINER:  !deassign
@@ -59,9 +63,12 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 		return
 	}
 
-	log.Printf("[ISSUE_COMMENT_HANDLER] commentCommand %s", commentCommand)
-	if strings.Contains(commentCommand, "assign") && isMaintainer {
-		log.Println("[ISSUE_COMMENT_HANDLER][ASSIGN] Comment !assign request")
+	SugaredLogger.Infof("[ISSUE_COMMENT_HANDLER] commentCommand %s", commentCommand)
+	if strings.Contains(commentCommand, "!assign") && isMaintainer {
+		SugaredLogger.Infow("Recieved an !assign request",
+			zap.Strings("scope",
+				[]string{"ISSUE_COMMENT_HANDLER", "ASSIGN"}),
+		)
 
 		contributorHandle, time, success := parseAssign(commentCommand)
 		if success {
@@ -80,7 +87,9 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 
 			if db_success {
 				// http.Post(url string, contentType string, body io.Reader)
-				SugaredLogger.Infof("Attempting to add assignee to Github Issue via Client, Repo owner: %s, Repo name: %s, Issue number: %d, Assignees: %v", parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, parsedHook.Issue.Number, []string{contributorHandle[1:]})
+				SugaredLogger.Infow(fmt.Sprintf("Attempting to add assignee to Github Issue via Client, Repo owner: %s, Repo name: %s, Issue number: %d, Assignees: %v", parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, parsedHook.Issue.Number, []string{contributorHandle[1:]}),
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+				)
 				ghClientIssue, ghClientResponse, err := globals.Myapp.RuntimeClient.Issues.AddAssignees(
 					context.TODO(),
 					parsedHook.Repository.Owner.Login,
@@ -96,11 +105,24 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					)
 				}
 
+				emitJson, err := json.Marshal(struct {
+					owner  string
+					repo   string
+					number int64
+				}{
+					owner:  parsedHook.Repository.Owner.Login,
+					repo:   parsedHook.Repository.FullName,
+					number: parsedHook.Issue.Number,
+				})
+
 				request := TimeoutEvent{
 					EventID:     contributorHandle,
-					TimeoutSecs: time * 60,
-					Emit:        fmt.Sprintf("Assign issue to %s", contributorHandle),
+					TimeoutSecs: time * 60, // in minutes
+					Emit:        string(emitJson),
 				}
+
+				log.Printf("Sending request %+v to Saturn Timer Daemon", request)
+
 				requestBytes, err := json.Marshal(request)
 
 				if err != nil {
@@ -174,7 +196,11 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			log.Printf("assign failed %s %d %t\n", contributorHandle, time, success)
 		}
 
-	} else if strings.Contains(commentCommand, "deassign") && isMaintainer {
+	} else if strings.Contains(commentCommand, "!deassign") && isMaintainer {
+		SugaredLogger.Infow("Recieved a !deassign request",
+			zap.Strings("scope",
+				[]string{"ISSUE_COMMENT_HANDLER", "DEASSIGN"}),
+		)
 		dbSuccess, err := globals.Myapp.Dbmanager.DeassignIssue(
 			parsedHook.Issue.URL,
 		)
@@ -191,6 +217,12 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				int(parsedHook.Issue.Number),
 				[]string{parsedHook.Issue.Assignee.Login},
 			)
+			SugaredLogger.Infow(
+				fmt.Sprintf("Attempting to deassign assignee from Github Issue via Client, Repo owner: %s, Repo name: %s, Issue number: %d, Assignees: %v",
+					parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, parsedHook.Issue.Number, parsedHook.Issue.Assignee.Login),
+				zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
+			)
+
 			if err != nil {
 				SugaredLogger.Errorf("Failed to deassign issue from %s. Unable to use Github RuntimeClient",
 					parsedHook.Issue.Assignee.Login,

@@ -5,3 +5,6 @@ bunsamosa-bot*
 *.db
 test.db
 .DS_Store
+Dockerfile
+compose.yml
+vector.yml
