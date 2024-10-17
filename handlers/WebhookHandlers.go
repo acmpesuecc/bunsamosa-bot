@@ -200,6 +200,12 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			)
 		}
 		if dbSuccess {
+			if parsedHook.Issue.Assignee == nil {
+				SugaredLogger.Errorf("Failed to deassign issue, no existing assignees",
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE", "GH_API"}),
+				)
+				return
+			}
 			_, _, err := globals.Myapp.RuntimeClient.Issues.RemoveAssignees(
 				context.TODO(),
 				parsedHook.Repository.Owner.Login,
@@ -385,15 +391,23 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			)
 		}
 
-	} else if strings.Contains(commentCommand, "extend") && isMaintainer {
+	} else if strings.Contains(commentCommand, "!extend") && isMaintainer {
 		extraTime, success := parseExtend(commentCommand)
 
 		if success {
+			if parsedHook.Issue.Assignee == nil {
+				SugaredLogger.Errorf("No Assignee for issue %q extend sent by sender %q",
+					parsedHook.Issue.URL,
+					parsedHook.Sender.Login,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+				return
+			}
 
 			currentContributorHandle := parsedHook.Issue.Assignee.Login
 
 			extendEventBytes, err := json.Marshal(&ExtendEvent{
-				EventID:     currentContributorHandle,
+				EventID:     "@" + currentContributorHandle,
 				TimeoutSecs: extraTime,
 			})
 
@@ -430,7 +444,16 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				)
 			}
 
-			if response.StatusCode != http.StatusOK {
+			if response.StatusCode == http.StatusBadRequest {
+				SugaredLogger.Errorf("POST /extend event_id %s response STATUS %d MSG %s",
+					currentContributorHandle,
+					response.StatusCode,
+					extendEventResponse.Message,
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
+				)
+
+
+			} else if response.StatusCode != http.StatusOK {
 				SugaredLogger.Errorf("POST /extend event_id %s response STATUS %d MSG %s",
 					currentContributorHandle,
 					response.StatusCode,

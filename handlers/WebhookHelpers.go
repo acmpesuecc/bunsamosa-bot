@@ -22,11 +22,11 @@ func contains(s []string, str string) bool {
 const defaultAssignment = 45
 const defaultExtension = 30
 
-const bountyPattern = `^!bounty\s+(\d+)`
-const assignPattern = `^!assign\s+@\w+(\s+\d+)?`
-const deassignPattern = `^!deassign`
-const withdrawPattern = `^!withdraw`
-const extendPattern = `^!extend(\s+\d+)`
+const bountyPattern = `^!bounty\s+(\d+)$`
+const assignPattern = `^!assign\s+@(\S+?)(\s+\d+)$`
+const deassignPattern = `^!deassign$`
+const withdrawPattern = `^!withdraw$`
+const extendPattern = `^!extend(\s+\d+)$`
 
 // var commandRegex = regexp.MustCompile(`^!\w+`)
 var commandRegex = regexp.MustCompile(`^!.+`)
