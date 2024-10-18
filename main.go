@@ -6,6 +6,7 @@ import (
 
 	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	"github.com/anirudhRowjee/bunsamosa-bot/handlers"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	"go.uber.org/zap"
 )
@@ -49,6 +50,7 @@ func main() {
 	mux.HandleFunc("POST /Github", handlers.WebhookHandler)
 	mux.HandleFunc("GET /leaderboard_mat", handlers.LeaderboardMaterialized)
 	mux.HandleFunc("GET /records", handlers.LeaderboardUserSpecific)
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	// UwU Route
 	mux.HandleFunc("GET /ping", handlers.PingHandler)
