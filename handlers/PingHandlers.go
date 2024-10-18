@@ -96,10 +96,10 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	contributorHandle := timeoutMessage.EventID
 
 	var emitInterface struct {
-		Owner      string
+		Owner     string
 		Commenter string
-		Repo       string
-		Number     int64
+		Repo      string
+		Number    int64
 	}
 
 	err = json.Unmarshal([]byte(timeoutMessage.Message), &emitInterface)
@@ -108,7 +108,7 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	commentBody := fmt.Sprintf("Hey @%s! The timer for the %s to work on the issue has finished, deassign and assign a new contributor or extend the current timer",
+	commentBody := fmt.Sprintf("Hey @%s! The timer for the %s to work on the issue has finished, deassign and assign a new contributor or extend the current timer. Contact maintainer leads if inactive @DedLad @polarhive @achyuthcodes30",
 		emitInterface.Commenter, contributorHandle)
 	comment := v3.IssueComment{Body: &commentBody}
 	_, _, err = globals.Myapp.RuntimeClient.Issues.CreateComment(
