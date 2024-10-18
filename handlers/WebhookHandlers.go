@@ -277,7 +277,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE", "TIMER_DAEMON"}),
 				)
 
-				response := "Failed to assign issue. Failed to allot a timer for the contributor. Contact @DedLad @polarhive"
+				response := "Failed to deassign issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 				comment := v3.IssueComment{Body: &response}
 
 				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -392,7 +392,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE", "TIMER_DAEMON"}),
 				)
 
-				response := "Failed to assign issue. Failed to allot a timer for the contributor. Contact @DedLad @polarhive"
+				response := "Failed to withdraw issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 				comment := v3.IssueComment{Body: &response}
 
 				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -486,7 +486,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE", "TIMER_DAEMON"}),
 				)
 
-				response := "Failed to assign issue. Failed to allot a timer for the contributor. Contact @DedLad @polarhive"
+				response := "Failed to extend issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 				comment := v3.IssueComment{Body: &response}
 
 				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
