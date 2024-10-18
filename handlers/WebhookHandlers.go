@@ -539,6 +539,18 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					extendEventResponse.Message,
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
 				)
+
+				extendResp := fmt.Sprintf("Extended timer by %d", extraTime)
+				comment := v3.IssueComment{Body: &extendResp}
+
+				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
+
+				if err != nil {
+					log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				} else {
+					log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				}
+
 			}
 		} else {
 			SugaredLogger.Errorf("Failed to extend issue for comment made by %s on issue %s",
