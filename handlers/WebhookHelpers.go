@@ -23,7 +23,7 @@ const defaultAssignment = 45
 const defaultExtension = 30
 
 const bountyPattern = `^!bounty\s+(\d+)$`
-const assignPattern = `^!assign\s+@(\S+?)(\s+\d+)$`
+const assignPattern = `^!assign\s+@(\S+)\s*(\d*)$`
 const deassignPattern = `^!deassign$`
 const withdrawPattern = `^!withdraw$`
 const extendPattern = `^!extend(\s+\d+)$`
@@ -97,7 +97,7 @@ func parseAssign(comment string) (string, int, bool) {
 		}
 
 	} else {
-		SugaredLogger.Errorf("Failed to parsed assign comment: %s ", comment)
+		SugaredLogger.Errorf("Failed to parsed assign comment: %s", comment)
 		return "", -1, false
 	}
 }

@@ -171,7 +171,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					} else {
 						log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 					}
-
 					return
 
 				}
