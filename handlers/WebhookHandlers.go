@@ -23,10 +23,10 @@ var TimerDaemonURL string
 var SugaredLogger *zap.SugaredLogger
 
 type EmitMessageFormat struct {
-	Owner      string
+	Owner     string
 	Commenter string
-	Repo       string
-	Number     int64
+	Repo      string
+	Number    int64
 }
 
 func newIssueHandler(parsedHook *ghwebhooks.IssuesPayload) {
@@ -111,10 +111,10 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				}
 
 				emitInterface := EmitMessageFormat{
-					Owner:  parsedHook.Repository.Owner.Login,
+					Owner:     parsedHook.Repository.Owner.Login,
 					Commenter: parsedHook.Sender.Login,
-					Repo:   parsedHook.Repository.Name,
-					Number: parsedHook.Issue.Number,
+					Repo:      parsedHook.Repository.Name,
+					Number:    parsedHook.Issue.Number,
 				}
 
 				emitJson, err := json.Marshal(emitInterface)
@@ -154,6 +154,26 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 						contributorHandle, err,
 						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
 					)
+				}
+
+				if response == nil {
+					SugaredLogger.Errorf("No response from the timer service",
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE", "TIMER_DAEMON"}),
+					)
+
+					response := "Failed to assign issue. Failed to allot a timer for the contributor"
+					comment := v3.IssueComment{Body: &response}
+
+					_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
+
+					if err != nil {
+						log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+					} else {
+						log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+					}
+
+					return
+
 				}
 
 				if response.StatusCode != http.StatusOK {
@@ -228,7 +248,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			}
 
 			cancelRequest := CancelEvent{
-				EventID: "@"+parsedHook.Issue.Assignee.Login,
+				EventID: "@" + parsedHook.Issue.Assignee.Login,
 			}
 
 			cancelRequestBytes, err := json.Marshal(cancelRequest)
@@ -251,6 +271,24 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					err,
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE"}),
 				)
+			}
+
+			if response == nil {
+				SugaredLogger.Errorf("No response from the timer service",
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "DEASSIGN_ISSUE", "TIMER_DAEMON"}),
+				)
+
+				response := "Failed to assign issue. Failed to allot a timer for the contributor. Contact @DedLad @polarhive"
+				comment := v3.IssueComment{Body: &response}
+
+				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
+
+				if err != nil {
+					log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				} else {
+					log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				}
+				return
 			}
 
 			var responseBytes []byte
@@ -333,7 +371,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 			}
 
 			cancelledRequest := CancelEvent{
-				EventID: "@"+parsedHook.Issue.Assignee.Login,
+				EventID: "@" + parsedHook.Issue.Assignee.Login,
 			}
 
 			cancelled_request_bytes, err := json.Marshal(cancelledRequest)
@@ -349,6 +387,24 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				"application/json",
 				bytes.NewReader(cancelled_request_bytes),
 			)
+
+			if response == nil {
+				SugaredLogger.Errorf("No response from the timer service",
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "WITHDRAW_ISSUE", "TIMER_DAEMON"}),
+				)
+
+				response := "Failed to assign issue. Failed to allot a timer for the contributor. Contact @DedLad @polarhive"
+				comment := v3.IssueComment{Body: &response}
+
+				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
+
+				if err != nil {
+					log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				} else {
+					log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				}
+				return
+			}
 
 			var responseBytes []byte
 			_, err = response.Body.Read(responseBytes)
@@ -426,6 +482,24 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				)
 			}
 
+			if response == nil {
+				SugaredLogger.Errorf("No response from the timer service",
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE", "TIMER_DAEMON"}),
+				)
+
+				response := "Failed to assign issue. Failed to allot a timer for the contributor. Contact @DedLad @polarhive"
+				comment := v3.IssueComment{Body: &response}
+
+				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
+
+				if err != nil {
+					log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				} else {
+					log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
+				}
+				return
+			}
+
 			var responseBytes []byte
 			_, err = response.Body.Read(responseBytes)
 			if err != nil {
@@ -451,7 +525,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					extendEventResponse.Message,
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
 				)
-
 
 			} else if response.StatusCode != http.StatusOK {
 				SugaredLogger.Errorf("POST /extend event_id %s response STATUS %d MSG %s",
