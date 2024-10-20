@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"fmt"
 
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
@@ -696,4 +697,31 @@ func (manager *DBManager) WithdrawIssue(issueURL string, contributorHandle strin
 	return true, nil
 }
 
-func (manager *DBManager) ExtendIssue(issueURL string) {}
+// CRUD op to check assign status for an identified contrib
+func (manager *DBManager) CheckUserAssigned(contributorHandle string) (bool, string, error) {
+	var contributorIssue ContributorIssue
+
+	manager.sugaredLogger.Infof("Checking if %s is already assigned to an issue\n", contributorHandle,
+		zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+	)
+
+	result := manager.db.Limit(1).First(&contributorIssue, "assignee = ?", contributorHandle)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			manager.sugaredLogger.Infof("%s is not assigned to any issue\n", contributorHandle,
+				zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+			)
+			return false, "", nil
+		}
+		manager.sugaredLogger.Errorf("Could not check user assignment ->", result.Error,
+			zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+		)
+		return false, "", result.Error
+	}
+
+	manager.sugaredLogger.Infof("%s is already assigned to issue %d\n", contributorHandle, contributorIssue.IssueID,
+		zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+	)
+	return true, fmt.Sprintf("%d", contributorIssue.IssueID), nil
+}

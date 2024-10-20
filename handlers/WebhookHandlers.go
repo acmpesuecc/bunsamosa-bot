@@ -79,6 +79,47 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 
 		contributorHandle, time, success := parseAssign(commentCommand)
 		if success {
+			// CRUD op called to check assign status of contrib
+			isAssigned, assignedIssueURL, err := globals.Myapp.Dbmanager.CheckUserAssigned(contributorHandle)
+			if err != nil {
+				SugaredLogger.Errorf("Failed to check if user is already assigned",
+					zap.String("user", contributorHandle),
+					zap.Error(err),
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+				)
+				return
+			}
+
+			if isAssigned {
+				// *L*ogging but sigh ill follow it for now, and refactor someother time
+				//@bwaklog and @anirudhsudhir please refactor this
+				SugaredLogger.Infow("User is already assigned to another issue",
+					zap.String("user", contributorHandle),
+					zap.String("assignedIssueURL", assignedIssueURL),
+					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+				)
+
+				response := fmt.Sprintf("User %s is already assigned toanother issue: %s", contributorHandle, assignedIssueURL)
+				comment := v3.IssueComment{Body: &response}
+
+				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(
+					context.TODO(),
+					parsedHook.Repository.Owner.Login,
+					parsedHook.Repository.Name,
+					int(parsedHook.Issue.Number),
+					&comment,
+				)
+
+				if err != nil {
+					SugaredLogger.Errorf("Failed to comment on issue",
+						zap.Error(err),
+						zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
+					)
+				}
+
+				return
+			}
+
 			db_success, err := globals.Myapp.Dbmanager.AssignIssue(
 				parsedHook.Issue.URL,
 				contributorHandle,
@@ -566,7 +607,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 		)
 	}
 }
-
 func newPRHandler(parsed_hook *ghwebhooks.PullRequestPayload) {
 
 	// Generate a New Comment - Text is Customizable
