@@ -2,7 +2,6 @@ package database
 
 import (
 	"errors"
-	"fmt"
 
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
@@ -158,7 +157,6 @@ func (manager *DBManager) AssignBounty(
 	pr_html_url string,
 	bounty_points int,
 ) error {
-
 	// TODO Handle for Re-assignment
 	// Start a New Transaction to create this object
 
@@ -194,7 +192,6 @@ func (manager *DBManager) AssignBounty(
 	)
 
 	manager.db.Transaction(func(tx *gorm.DB) error {
-
 		// Create the time-series record
 		result := tx.Create(&crm)
 		if result.Error != nil {
@@ -237,7 +234,7 @@ func (manager *DBManager) AssignBounty(
 			zap.Strings("scope", []string{"DBMANAGER", "LEADERBOARD"}),
 		)
 
-		//Recompute ContributorModel Table
+		// Recompute ContributorModel Table
 		lb_query := `DELETE FROM contributor_models;INSERT INTO contributor_models (Name, Current_bounty)
 SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
    select
@@ -265,7 +262,6 @@ SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
 }
 
 func (manager *DBManager) GetAllRecords() ([]ContributorRecordModel, error) {
-
 	// Declare the array of all records
 	var records []ContributorRecordModel
 
@@ -286,7 +282,6 @@ func (manager *DBManager) GetAllRecords() ([]ContributorRecordModel, error) {
 
 		return records, nil
 	}
-
 }
 
 func (manager *DBManager) GetUserRecords(contributor string) ([]ContributorRecordModel, error) {
@@ -319,7 +314,6 @@ func (manager *DBManager) GetUserRecords(contributor string) ([]ContributorRecor
 }
 
 func (manager *DBManager) GetLeaderboard() ([]ContributorModel, error) {
-
 	leaderboard_query := `
 	SELECT contributor_name AS Name, sum(latest_points) AS Current_bounty from (
 		select
@@ -351,7 +345,6 @@ func (manager *DBManager) GetLeaderboard() ([]ContributorModel, error) {
 
 		return records, nil
 	}
-
 }
 
 func (manager *DBManager) GetLeaderboardMat() ([]ContributorModel, error) {
@@ -359,7 +352,7 @@ func (manager *DBManager) GetLeaderboardMat() ([]ContributorModel, error) {
 	var records []ContributorModel
 
 	// Fetch from the database
-	//manager.sugaredLogger.Infof("[DBMANAGER|MUX-LB] Fetching All Records")
+	// manager.sugaredLogger.Infof("[DBMANAGER|MUX-LB] Fetching All Records")
 	fetch_result := manager.db.Find(&records)
 	if fetch_result.Error != nil {
 		manager.sugaredLogger.Errorf("Could not fetch all records ->", fetch_result.Error,
@@ -519,7 +512,6 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string,
 
 		return nil
 	})
-
 	if err != nil {
 		manager.sugaredLogger.Errorf("Could not store assignment of issue with IssueId %d to contributor %q with ContributorID %d\n", issueData.ID, contributorHandle, contributorData.ID,
 			zap.Strings("scope", []string{"DBMANAGER", "ASSIGN", "TRANSACTION"}),
@@ -604,7 +596,6 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return false, err
 	}
@@ -686,7 +677,6 @@ func (manager *DBManager) WithdrawIssue(issueURL string, contributorHandle strin
 
 		return nil
 	})
-
 	if err != nil {
 		manager.sugaredLogger.Errorf("Couldn't perform transaction to withdraw contributor %q from issue %q\n", contributorHandle, issueURL,
 			zap.Strings("scope", []string{"DBMANAGER", "WITHDRAW", "TRANSACTION"}),
@@ -699,13 +689,34 @@ func (manager *DBManager) WithdrawIssue(issueURL string, contributorHandle strin
 
 // CRUD op to check assign status for an identified contrib
 func (manager *DBManager) CheckUserAssigned(contributorHandle string) (bool, string, error) {
+	var contributorData Contributor
 	var contributorIssue ContributorIssue
+
+	manager.sugaredLogger.Infof("Obtaining the id of contributor %q from the Contributors table\n", contributorHandle,
+		zap.Strings("scope", []string{"DBMANAGER", "ASSIGN"}),
+	)
+	result := manager.db.First(&contributorData, &Contributor{GithubHandle: contributorHandle})
+	if result.Error != nil {
+		// If the error is a missing record, continue to assign the issue and add a record to the table
+		// Else, return the error
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			manager.sugaredLogger.Errorf("Contributor does not exist in the database", contributorHandle,
+				zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+			)
+			return false, "", nil
+		}
+
+		manager.sugaredLogger.Errorf("Could not obtain contributor %q from the Contributors table", contributorHandle,
+			zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+		)
+
+		return false, "", result.Error
+	}
 
 	manager.sugaredLogger.Infof("Checking if %s is already assigned to an issue\n", contributorHandle,
 		zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
 	)
-
-	result := manager.db.Limit(1).First(&contributorIssue, "assignee = ?", contributorHandle)
+	result = manager.db.Limit(1).First(&contributorIssue, &ContributorIssue{ContributorID: contributorData.ID})
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -720,8 +731,31 @@ func (manager *DBManager) CheckUserAssigned(contributorHandle string) (bool, str
 		return false, "", result.Error
 	}
 
-	manager.sugaredLogger.Infof("%s is already assigned to issue %d\n", contributorHandle, contributorIssue.IssueID,
-		zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
-	)
-	return true, fmt.Sprintf("%d", contributorIssue.IssueID), nil
+	// If contributor exisst but issue id is 0, no issues assigned
+	if contributorIssue.IssueID != 0 {
+		// Querying issue the contributor is assigned to
+
+		var issueData Issue
+		issueURL := ""
+		result = manager.db.Find(&issueData, Issue{ID: contributorIssue.IssueID})
+
+		if result.Error != nil {
+			manager.sugaredLogger.Errorf("Could not find the issue contributor %s is assigned to -> %v", contributorHandle, result.Error,
+				zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+			)
+			issueURL = "unknown_issue"
+		} else {
+			manager.sugaredLogger.Infof("%s is already assigned to issue %d\n", contributorHandle, contributorIssue.IssueID,
+				zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+			)
+			issueURL = issueData.URL
+		}
+
+		return true, issueURL, nil
+	} else {
+		manager.sugaredLogger.Infof("%s is not assigned to any issue %d\n", contributorHandle, contributorIssue.IssueID,
+			zap.Strings("scope", []string{"DBMANAGER", "CHECK_USER_ASSIGNED"}),
+		)
+		return false, "", nil
+	}
 }

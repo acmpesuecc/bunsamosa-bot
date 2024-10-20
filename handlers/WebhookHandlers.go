@@ -30,7 +30,6 @@ type EmitMessageFormat struct {
 }
 
 func newIssueHandler(parsedHook *ghwebhooks.IssuesPayload) {
-
 	// Generate a New Comment - Text is Customizable
 
 	// TODO Refactor: Add these responses to the App Struct
@@ -47,7 +46,6 @@ func newIssueHandler(parsedHook *ghwebhooks.IssuesPayload) {
 }
 
 func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
-
 	SugaredLogger.Infow(
 		fmt.Sprintf("Received new comment on Repository [%s] Issue (#%d)[%s] Comment: %s\n",
 			parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title, parsedHook.Comment.Body),
@@ -62,7 +60,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 	commentCommand := getCommand(issue_comment)
 
 	isMaintainer, err := globals.Myapp.Dbmanager.CheckIsMaintainer(strings.ToLower(parsedHook.Sender.Login))
-
 	if err != nil {
 		SugaredLogger.Errorf("Could not check is_maintainer ->", err,
 			zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "CHECK_MAINTAINER"}),
@@ -99,7 +96,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "ASSIGN_ISSUE"}),
 				)
 
-				response := fmt.Sprintf("User %s is already assigned toanother issue: %s", contributorHandle, assignedIssueURL)
+				response := fmt.Sprintf("User %s is already assigned to another issue: %s", contributorHandle, assignedIssueURL)
 				comment := v3.IssueComment{Body: &response}
 
 				_, _, err := globals.Myapp.RuntimeClient.Issues.CreateComment(
@@ -109,7 +106,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					int(parsedHook.Issue.Number),
 					&comment,
 				)
-
 				if err != nil {
 					SugaredLogger.Errorf("Failed to comment on issue",
 						zap.Error(err),
@@ -125,7 +121,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				contributorHandle,
 				parsedHook.Repository.Name,
 			)
-
 			if err != nil {
 				SugaredLogger.Errorf("Failed to assign issue to %q",
 					contributorHandle, err,
@@ -159,7 +154,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				}
 
 				emitJson, err := json.Marshal(emitInterface)
-
 				if err != nil {
 					log.Println("[ERROR] Failed to marshal message for saturn!!")
 				}
@@ -173,7 +167,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				log.Printf("Sending request %+v to Saturn Timer Daemon", request)
 
 				requestBytes, err := json.Marshal(request)
-
 				if err != nil {
 					SugaredLogger.Errorf("Failed to assign issue to %q. Failed to marshal bytes for request to Timer-Daemon",
 						contributorHandle, err,
@@ -373,7 +366,7 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 		}
 
 	} else if strings.Contains(commentCommand, "!withdraw") {
-		//todo
+		// todo
 		// first query db and check
 		contributorHandle := parsedHook.Sender.Login
 
@@ -506,7 +499,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 				EventID:     "@" + currentContributorHandle,
 				TimeoutSecs: extraTime,
 			})
-
 			if err != nil {
 				SugaredLogger.Errorf("Failed to marshal bytes for request to Timer-Daemon %s",
 					parsedHook.Sender.Login,
@@ -565,7 +557,6 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 					extendEventResponse.Message,
 					zap.Strings("scope", []string{"ISSUE_COMMENT_HANDLER", "EXTEND_ISSUE"}),
 				)
-
 			} else if response.StatusCode != http.StatusOK {
 				SugaredLogger.Errorf("POST /extend event_id %s response STATUS %d MSG %s",
 					currentContributorHandle,
@@ -607,8 +598,8 @@ func newIssueCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 		)
 	}
 }
-func newPRHandler(parsed_hook *ghwebhooks.PullRequestPayload) {
 
+func newPRHandler(parsed_hook *ghwebhooks.PullRequestPayload) {
 	// Generate a New Comment - Text is Customizable
 
 	// TODO Refactor: Add these responses to the App Struct
@@ -674,12 +665,10 @@ func newPRCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 		log.Printf("[WARN] Someone else commented on Issue -> Repository [%s] Issue (#%d)[%s]\n", parsedHook.Repository.FullName, parsedHook.Issue.Number, parsedHook.Issue.Title)
 	}
 	// Return error
-
 }
 
 func WebhookHandler(response http.ResponseWriter, request *http.Request) {
-
-	//Creating hook parsers :
+	// Creating hook parsers :
 	hook_secret := ghwebhooks.Options.Secret(globals.Myapp.WebhookSecret)
 	hook_parser, err := ghwebhooks.New(hook_secret)
 	if err != nil {
@@ -689,7 +678,7 @@ func WebhookHandler(response http.ResponseWriter, request *http.Request) {
 
 	log.Println("Recieved webhook event")
 
-	//Listing all actions/Events to be parsed :
+	// Listing all actions/Events to be parsed :
 	NeededEvents := []ghwebhooks.Event{
 		ghwebhooks.IssueCommentEvent,      // STATUS: Not handled
 		ghwebhooks.IssuesEvent,            // STATUS: Handled
@@ -700,7 +689,6 @@ func WebhookHandler(response http.ResponseWriter, request *http.Request) {
 	}
 
 	parsed_hook, err := hook_parser.Parse(request, NeededEvents...)
-
 	if err != nil {
 
 		log.Println(parsed_hook)
@@ -763,7 +751,6 @@ func WebhookHandler(response http.ResponseWriter, request *http.Request) {
 			go newPRCommentHandler(&parsed_hook)
 		} else if (parsed_hook.Issue.PullRequest == nil) && parsed_hook.Action == "created" {
 			go newIssueCommentHandler(&parsed_hook)
-
 		}
 
 	// The Repository has been made public
