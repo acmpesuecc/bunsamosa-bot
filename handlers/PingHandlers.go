@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/anirudhRowjee/bunsamosa-bot/globals"
-	v3 "github.com/google/go-github/v47/github"
+	"github.com/google/go-github/v74/github"
 )
 
 type Event struct {
@@ -110,7 +110,7 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 
 	commentBody := fmt.Sprintf("Hey @%s! The timer for the %s to work on the issue has finished, deassign and assign a new contributor or extend the current timer. Contact maintainer leads if inactive @DedLad @polarhive @achyuthcodes30",
 		emitInterface.Commenter, contributorHandle)
-	comment := v3.IssueComment{Body: &commentBody}
+	comment := github.IssueComment{Body: &commentBody}
 	_, _, err = globals.Myapp.RuntimeClient.Issues.CreateComment(
 		context.TODO(),
 		emitInterface.Owner,

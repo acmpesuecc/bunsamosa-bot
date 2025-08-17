@@ -6,7 +6,7 @@ import (
 )
 
 type DBManager struct {
-	db *gorm.DB
+	db            *gorm.DB
 	sugaredLogger *zap.SugaredLogger
 }
 
