@@ -9,10 +9,10 @@ import (
 
 	"path/filepath"
 
-	v3 "github.com/google/go-github/v47/github"
+	"github.com/google/go-github/v74/github"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/anirudhRowjee/bunsamosa-bot/database"
 	"github.com/bradleyfalzon/ghinstallation/v2"
@@ -27,7 +27,7 @@ type App struct {
 	CertPath      string
 
 	// Runtime Variables and Global Dependencies
-	RuntimeClient *v3.Client
+	RuntimeClient *github.Client
 	AppTransport  *ghinstallation.AppsTransport
 
 	// Add Database Dependencies
@@ -82,7 +82,7 @@ func (a *App) ParseFromYAML(path string) {
 	}
 
 	// Read in the Connection String
-	a.Db_connection_string = yaml_output["dbConnectionString"]
+	a.Db_connection_string = yaml_output["dbPath"]
 
 	a.TimerDaemonURL = yaml_output["timerDaemonURL"]
 
@@ -110,7 +110,7 @@ func (a *App) InitializeGithubClient() {
 
 	// NOTE Don't forget to install the app in your repository before you do this!
 	// Initialize the installation
-	installation, _, err := v3.NewClient(&http.Client{Transport: app_transport}).Apps.FindOrganizationInstallation(context.TODO(), fmt.Sprint(a.OrgID))
+	installation, _, err := github.NewClient(&http.Client{Transport: app_transport}).Apps.FindOrganizationInstallation(context.TODO(), fmt.Sprint(a.OrgID))
 	if err != nil {
 		// log.Println("[ERROR] Could not Find Organization installation", err)
 		a.SugaredLogger.Panicw("Could not Find Organization installation", err, zap.String("scope", "ERROR"))
@@ -123,7 +123,7 @@ func (a *App) InitializeGithubClient() {
 	installationID := installation.GetID()
 	installation_transport := ghinstallation.NewFromAppsTransport(app_transport, installationID)
 
-	a.RuntimeClient = v3.NewClient(&http.Client{Transport: installation_transport})
+	a.RuntimeClient = github.NewClient(&http.Client{Transport: installation_transport})
 
 	// log.Printf("[CLIENT] successfully initialized GitHub app client, installation-id:%s expected-events:%v\n", fmt.Sprint(installationID), installation.Events)
 	a.SugaredLogger.Infof("Successfully initialized Github app client, installation-id:%s expected-events:%v",
