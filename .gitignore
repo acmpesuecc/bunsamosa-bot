@@ -8,3 +8,5 @@ test.db
 Dockerfile
 compose.yml
 vector.yml
+
+dev-temp/
