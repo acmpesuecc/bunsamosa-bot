@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 // Function to check if a string is in an array
@@ -37,13 +38,12 @@ var extendRegex = regexp.MustCompile(extendPattern)
 
 // function to check what the command is and parse accordingly
 // to perform the correct action (assign / deassign issue, extended time for issue, contributor withdrawal)
-func getCommand(comment string) string {
+func getCommand(comment string, logger *zerolog.Logger) string {
 	comment = strings.TrimLeft(comment, " ")
 	matches := commandRegex.FindStringSubmatch(comment)
 	if len(matches) > 0 {
 		botCommand := strings.Trim(matches[0], " ")
-		SugaredLogger.Infof("Initial bot command regex match: %s", botCommand)
-		// return strings.Trim(matches[0][1:], " ")
+		logger.Info().Msgf("Initial bot command regex match: %s", botCommand)
 		return botCommand
 	} else {
 		return ""
@@ -72,7 +72,7 @@ func parseBountyPoints(comment string) (int, bool) {
 
 // function to validate if PR assign comment is in the correct format
 // and assign issue to a contributor for x minutes (default is "defaultAssignment")
-func parseAssign(comment string) (string, int, bool) {
+func parseAssign(comment string, logger *zerolog.Logger) (string, int, bool) {
 	comment = strings.TrimLeft(comment, " ")
 
 	// Compile the regular expression
@@ -80,24 +80,24 @@ func parseAssign(comment string) (string, int, bool) {
 	matches := assignRegex.FindStringSubmatch(comment)
 	if len(matches) > 0 {
 		message := strings.Split(strings.Trim(matches[0], " "), " ")
-		var time int
+		var duration int
 		var err error
 		handle := message[1]
 		fmt.Println(message)
 		// If time is defined
 		if len(message) > 2 {
-			timeStr := message[2]
-			time, err = strconv.Atoi(timeStr)
-			SugaredLogger.Infof("Parsed assign comment with contributor gihhub handle %s, time %d", handle, time)
-			return handle, time, err == nil
+			durationStr := message[2]
+			duration, err = strconv.Atoi(durationStr)
+			logger.Info().Str("scope", "PARSE_ASSIGN").Str("contributor_handle", handle).Int("duration", duration).Msg("Successfully parsed `assign` comment")
+			return handle, duration, err == nil
 		} else {
 			// default time
-			SugaredLogger.Infof("Parsed assign comment with contributor gihhub handle %s, time %d", handle, defaultAssignment)
+			logger.Info().Str("scope", "PARSE_ASSIGN").Str("contributor_handle", handle).Int("duration", defaultAssignment).Msg("Successfully parsed `assign` comment")
 			return handle, defaultAssignment, true
 		}
 
 	} else {
-		SugaredLogger.Errorf("Failed to parsed assign comment: %s", comment)
+		logger.Error().Str("scope", "PARSE_ASSIGN").Msg("Failed to parse `assign` comment")
 		return "", -1, false
 	}
 }
@@ -132,10 +132,8 @@ func isPullRequest(url string) bool {
 	// Then we can verify that the given URL is a pull request URL
 	parts := strings.Split(url, "/")
 	if contains(parts, "pulls") {
-		log.Println("[PR_URLVALID] This is a Pull Request.", parts)
 		return true
 	} else {
-		log.Println("[PR_URLVALID] This is not a Pull Request.", parts)
 		return false
 	}
 

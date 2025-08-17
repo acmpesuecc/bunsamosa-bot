@@ -10,3 +10,4 @@ compose.yml
 vector.yml
 
 dev-temp/
+logs/
