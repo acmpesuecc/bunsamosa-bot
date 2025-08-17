@@ -6,16 +6,17 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"path/filepath"
 
+	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v74/github"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 
 	"github.com/anirudhRowjee/bunsamosa-bot/database"
-	"github.com/bradleyfalzon/ghinstallation/v2"
 )
 
 type App struct {
@@ -25,165 +26,111 @@ type App struct {
 	AppID         int
 	OrgID         int
 	CertPath      string
+	WebServerPort int
 
 	// Runtime Variables and Global Dependencies
 	RuntimeClient *github.Client
 	AppTransport  *ghinstallation.AppsTransport
 
 	// Add Database Dependencies
-	Db_connection_string string
-	Dbmanager            *database.DBManager
+	DBPath    string
+	DBManager *database.DBManager
 
-	// Sugar Logger for structured logging
-	SugaredLogger *zap.SugaredLogger
+	// Console Logger for pretty printed logs
+	LogLevel      string
+	JSONLogWriter *os.File
+	ZeroLogger    *zerolog.Logger
 
 	TimerDaemonURL string
 }
 
-var Myapp App
+var AppState App
 
 func (a *App) ParseFromYAML(path string) {
+	yamlInitLogger := a.ZeroLogger.With().Array("scope", zerolog.Arr().Str("INIT").Str("YAML")).Logger()
 
 	filename, _ := filepath.Abs(path)
 	yamlFile, err := os.ReadFile(filename)
-
 	if err != nil {
-		// log.Println("[ERROR] Invalid Secrets YAML Filepath")
-		a.SugaredLogger.Panicw("Invalid Secrets YAML Filepath", zap.Strings("scope", []string{"ERROR"}))
-		// panic(err)
+		yamlInitLogger.Fatal().Err(err)
 	}
 
 	var yaml_output map[string]string
 
 	err = yaml.Unmarshal(yamlFile, &yaml_output)
 	if err != nil {
-		// log.Println("[ERROR] Could not Unmarshal YAML")
-		a.SugaredLogger.Panicw("Could not Unmarshal YAML", zap.Strings("scope", []string{"ERROR"}))
-		// panic(err)
+		yamlInitLogger.Fatal().Err(err).Msg("Failed to unmarshal YAML")
 	}
-
-	// TODO Add error reporting here
-	// log.Println("[SECRETS] YAML Parsing Complete")
-	a.SugaredLogger.Infof("YAML Parsing Complete", zap.Strings("scope", []string{"SECRETS"}))
 
 	a.CertPath = yaml_output["certPath"]
 	a.WebhookSecret = yaml_output["webhookSecret"]
 
-	// TODO better way to do this?
 	a.AppID, err = strconv.Atoi(yaml_output["appID"])
 	if err != nil {
-		a.SugaredLogger.Panicw("Could not Parse AppID", zap.Strings("scope", []string{"SECRETS"}))
-		// panic(err)
+		yamlInitLogger.Fatal().Err(err).Msg("Could not parse appID")
 	}
+
 	a.OrgID, err = strconv.Atoi(yaml_output["orgID"])
 	if err != nil {
-		a.SugaredLogger.Panicw("Could not Parse OrgID", zap.Strings("scope", []string{"SECRETS"}))
-		// panic(err)
+		yamlInitLogger.Fatal().Err(err).Msg("Could not parse orgID")
 	}
 
-	// Read in the Connection String
-	a.Db_connection_string = yaml_output["dbPath"]
+	a.WebServerPort, err = strconv.Atoi(yaml_output["webServerPort"])
+	if err != nil {
+		yamlInitLogger.Fatal().Err(err).Msg("Could not parse webServerPort")
+	}
 
+	a.DBPath = yaml_output["dbPath"]
 	a.TimerDaemonURL = yaml_output["timerDaemonURL"]
-
-	a.SugaredLogger.Infof("YAML Parsed successfully", zap.Strings("scope", []string{"INIT"}))
+	yamlInitLogger.Info().Msg("YAML parsed successfully")
 }
 
 func (a *App) InitializeGithubClient() {
-	// Initialize the Github Client and AppTransport
-	// log.Println("[CLIENT] Initializing Github Client")
-	a.SugaredLogger.Infof("Initialized Github Client", zap.Strings("scope", []string{"CLIENT"}))
+	ghInitLogger := a.ZeroLogger.With().Array("scope", zerolog.Arr().Str("INIT").Str("GITHUB")).Logger()
+	ghInitLogger.Info().Msg("Initializing Github client...")
 
 	app_transport, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, int64(a.AppID), a.CertPath)
-
-	// Push to gloabl scope
+	if err != nil {
+		ghInitLogger.Fatal().Err(err).Msg("Could not Create Github App Client")
+	}
 	a.AppTransport = app_transport
 
-	if err != nil {
-		// log.Println("[ERROR] Could not Create Github App Client")
-		a.SugaredLogger.Panicw("Could not Create Github App Client", err, zap.String("scope", "ERROR"))
-		// panic(err)
-	}
+	ghInitLogger.Info().Msg("App Transport Initialized")
 
-	// log.Println("[CLIENT] App Transport Initialized")
-	a.SugaredLogger.Infof("App Transport Initialized", zap.String("scope", "CLIENT"))
-
-	// NOTE Don't forget to install the app in your repository before you do this!
-	// Initialize the installation
 	installation, _, err := github.NewClient(&http.Client{Transport: app_transport}).Apps.FindOrganizationInstallation(context.TODO(), fmt.Sprint(a.OrgID))
 	if err != nil {
-		// log.Println("[ERROR] Could not Find Organization installation", err)
-		a.SugaredLogger.Panicw("Could not Find Organization installation", err, zap.String("scope", "ERROR"))
-		panic(err)
+		ghInitLogger.Fatal().Err(err).Msg("Could not Find Organization installation")
 	}
-	// log.Println("[CLIENT] Organization Transport Initialized")
-	a.SugaredLogger.Infof("Organization Transport Initialized", zap.String("scope", "CLIENT"))
+	ghInitLogger.Info().Msg("Organization Transport Initialized")
 
-	// Initialize an authenticated transport for the installation
 	installationID := installation.GetID()
 	installation_transport := ghinstallation.NewFromAppsTransport(app_transport, installationID)
 
 	a.RuntimeClient = github.NewClient(&http.Client{Transport: installation_transport})
-
-	// log.Printf("[CLIENT] successfully initialized GitHub app client, installation-id:%s expected-events:%v\n", fmt.Sprint(installationID), installation.Events)
-	a.SugaredLogger.Infof("Successfully initialized Github app client, installation-id:%s expected-events:%v",
-		fmt.Sprint(installationID),
-		installation.Events,
-		zap.String("scope", "CLIENT"),
-	)
-}
-
-func (a *App) InitializeDatabase() {
-	// Start the database. Panic on error.
-
-	dbmanager := database.DBManager{}
-	// log.Println("[DATABASE] Initializing Database Manager")
-	a.SugaredLogger.Logw(zap.InfoLevel, "Initializing Database Manager",
-		zap.Strings("scope", []string{"DATABASE"}),
-	)
-	err := dbmanager.Init(a.Db_connection_string, a.SugaredLogger)
-	if err != nil {
-		// log.Panicln("[DATABASE] DB Initialization Failed ->", err)
-		a.SugaredLogger.Panicw("DB Initialization Failed -> %+v", err, zap.String("scope", "DATABASE"))
-	} else {
-		a.Dbmanager = &dbmanager
-		// log.Println("[DATABASE] DB Manager Initialized successfully")
-		a.SugaredLogger.Infof("DB Manager Initialized Successfully", zap.Strings("scope", []string{"DATABASE"}))
-	}
+	ghInitLogger.Info().Str("Installation-ID", fmt.Sprint(installationID)).Any("Installation-Events", installation.Events).Msg("Successfully initialized Github app client")
 }
 
 func (a *App) InitializeLogger() {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+	consoleLogger := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+	logger := zerolog.New(zerolog.MultiLevelWriter(consoleLogger, a.JSONLogWriter)).With().Timestamp().Caller().Logger()
+	a.ZeroLogger = &logger
 
-	// Create a custom encoder configuration
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "timestamp",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "message",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+	switch strings.ToLower(a.LogLevel) {
+	case "trace":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	default:
+		panic("Invalid log level, available levels: trace, debug, error, info")
 	}
 
-	// Apply the custom encoder configuration using WithOptions
-	customLogger := logger.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-		return zapcore.NewCore(
-			zapcore.NewJSONEncoder(encoderConfig), // Custom encoder
-			zapcore.AddSync(os.Stderr),            // Sync to stdout
-			c,                                     // Use the same level as the original core
-		)
-	}))
-	sugar := customLogger.Sugar()
-	sugar.Infof("Initialized Logger",
-		zap.Strings("scope", []string{"INIT"}),
-	)
-	a.SugaredLogger = sugar
+	a.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("INIT").Str("LOGGER")).Msg("Initialized Console Logger")
 }
 
 func (a *App) LeaderboardGetAllRecords() ([]database.ContributorRecordModel, error) {
@@ -192,26 +139,7 @@ func (a *App) LeaderboardGetAllRecords() ([]database.ContributorRecordModel, err
 	// from the database
 	var all_records []database.ContributorRecordModel
 
-	// Use the database method
-	records, err := a.Dbmanager.GetAllRecords()
-	if err != nil {
-		return nil, err
-	} else {
-		all_records = records
-	}
-
-	return all_records, nil
-
-}
-
-func (a *App) AssignBountyPoints() ([]database.ContributorRecordModel, error) {
-
-	// Get all the time series data present so far
-	// from the database
-	var all_records []database.ContributorRecordModel
-
-	// Use the database method
-	records, err := a.Dbmanager.GetAllRecords()
+	records, err := a.DBManager.GetAllRecords()
 	if err != nil {
 		return nil, err
 	} else {
@@ -227,7 +155,7 @@ func (a *App) Leaderboard_GetNonMaterialized() ([]database.ContributorModel, err
 	// Get a materialized view of the leaderboard
 	var leaderboard []database.ContributorModel
 
-	records, err := a.Dbmanager.GetLeaderboard()
+	records, err := a.DBManager.GetLeaderboard()
 	if err != nil {
 		return nil, err
 	} else {
@@ -243,7 +171,7 @@ func (a *App) Leaderboard_GetMaterialized() ([]database.ContributorModel, error)
 	// Get a materialized view of the leaderboard
 	var leaderboard []database.ContributorModel
 
-	records, err := a.Dbmanager.GetLeaderboardMat()
+	records, err := a.DBManager.GetLeaderboardMat()
 	if err != nil {
 		return nil, err
 	} else {
@@ -261,8 +189,7 @@ func (a *App) Leaderboard_GetUserRecords(user string) ([]database.ContributorRec
 	// from the database
 	var all_records []database.ContributorRecordModel
 
-	// Use the database method
-	records, err := a.Dbmanager.GetUserRecords(user)
+	records, err := a.DBManager.GetUserRecords(user)
 	if err != nil {
 		return nil, err
 	} else {
