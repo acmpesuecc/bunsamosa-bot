@@ -138,7 +138,7 @@ func (manager *DBManager) AssignBounty(
 			manager.zeroLogger.Error().
 				Array("scope", zerolog.Arr().Str("DBMANAGER").Str("BOUNTY")).
 				Err(result.Error).
-				Msg("Could Not Create ContributorRecordModel ->")
+				Msg("Could Not Create ContributorRecordModel")
 
 			return result.Error
 		}

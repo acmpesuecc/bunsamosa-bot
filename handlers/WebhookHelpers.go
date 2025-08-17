@@ -43,7 +43,7 @@ func getCommand(comment string, logger *zerolog.Logger) string {
 	matches := commandRegex.FindStringSubmatch(comment)
 	if len(matches) > 0 {
 		botCommand := strings.Trim(matches[0], " ")
-		logger.Info().Msgf("Initial bot command regex match: %s", botCommand)
+		logger.Info().Str("botCommand", botCommand).Msg("Initial bot command regex match")
 		return botCommand
 	} else {
 		return ""
