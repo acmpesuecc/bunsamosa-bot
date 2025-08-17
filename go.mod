@@ -1,4 +1,4 @@
-module github.com/anirudhRowjee/bunsamosa-bot
+module github.com/acmpesuecc/bunsamosa-bot
 
 go 1.24.5
 
