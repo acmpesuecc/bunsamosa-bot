@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/anirudhRowjee/bunsamosa-bot/database"
-	"github.com/anirudhRowjee/bunsamosa-bot/globals"
-	"github.com/anirudhRowjee/bunsamosa-bot/handlers"
+	"github.com/acmpesuecc/bunsamosa-bot/database"
+	"github.com/acmpesuecc/bunsamosa-bot/globals"
+	"github.com/acmpesuecc/bunsamosa-bot/handlers"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
