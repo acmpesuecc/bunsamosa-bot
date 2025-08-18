@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -781,7 +780,7 @@ func WebhookHandler(response http.ResponseWriter, request *http.Request) {
 	parsedHook, err := hookParser.Parse(request, NeededEvents...)
 	if err != nil {
 
-		log.Println(parsedHook)
+		// log.Println(parsedHook)
 		switch err {
 		case ghwebhooks.ErrEventNotFound:
 			globals.AppState.ZeroLogger.Warn().Err(err).
