@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlog "gorm.io/gorm/logger"
 )
 
 func (manager *DBManager) Init(connection_string string, logger *zerolog.Logger) error {
@@ -13,7 +14,9 @@ func (manager *DBManager) Init(connection_string string, logger *zerolog.Logger)
 	dbInitLogger := manager.zeroLogger.With().Array("scope", zerolog.Arr().Str("DBMANAGER")).Logger()
 
 	dbInitLogger.Info().Msg("Initializing Database...")
-	db, err := gorm.Open(sqlite.Open(connection_string), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(connection_string), &gorm.Config{
+		Logger: gormlog.Default.LogMode(gormlog.Silent),
+	})
 	if err != nil {
 		dbInitLogger.Error().Err(err).Msg("Could not initialize the database")
 		return err
