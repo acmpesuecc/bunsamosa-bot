@@ -153,6 +153,7 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
 			Str("contributor", contributorHandle).
 			Msg("Failed to assign issue, DB error")
+		// return
 	}
 	globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
 		Str("repoOwner", parsedHook.Repository.Owner.Login).
@@ -216,6 +217,7 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		"application/json",
 		bytes.NewReader(requestBytes),
 	)
+
 	if err != nil {
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Str("contributor", contributorHandle).
@@ -366,18 +368,8 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 		return
 	}
 
-	var responseBytes []byte
-	_, err = response.Body.Read(responseBytes)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).
-			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE")).
-			Str("assignee", parsedHook.Issue.Assignee.Login).
-			Msg("Failed to read response bytes from TimerDaemon for POST /cancel request")
-		return
-	}
-
 	var cancelResponse CancelResponse
-	err = json.Unmarshal(responseBytes, &cancelResponse)
+	err = json.NewDecoder(response.Body).Decode(&cancelResponse)
 	if err != nil {
 		globals.AppState.ZeroLogger.Error().Err(err).
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE")).
@@ -492,18 +484,8 @@ func withdrawIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 		return
 	}
 
-	var responseBytes []byte
-	_, err = response.Body.Read(responseBytes)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).
-			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("WITHDRAW_ISSUE")).
-			Str("assignee", parsedHook.Issue.Assignee.Login).
-			Msg("Failed to read response bytes from TimerDaemon for POST /cancel request")
-		return
-	}
-
 	var cancelResponse CancelResponse
-	err = json.Unmarshal(responseBytes, &cancelResponse)
+	err = json.NewDecoder(response.Body).Decode(&cancelResponse)
 	if err != nil {
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("WITHDRAW_ISSUE")).
 			Str("assignee", parsedHook.Issue.Assignee.Login).
@@ -593,17 +575,8 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		return
 	}
 
-	var responseBytes []byte
-	_, err = response.Body.Read(responseBytes)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
-			Str("assignee", currentContributorHandle).
-			Msg("Failed to read response bytes from TimerDaemon for POST /extend request")
-		return
-	}
-
 	var extendEventResponse ExtendResponse
-	err = json.Unmarshal(responseBytes, &extendEventResponse)
+	err = json.NewDecoder(response.Body).Decode(&extendEventResponse)
 	if err != nil {
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
 			Str("assignee", currentContributorHandle).

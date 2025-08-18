@@ -3,21 +3,12 @@ package handlers
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog"
 )
-
-// Function to check if a string is in an array
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-	return false
-}
 
 // Default Issue Times
 const defaultAssignment = 45
@@ -131,7 +122,7 @@ func isPullRequest(url string) bool {
 	// If we can verify that the second-last element is a string
 	// Then we can verify that the given URL is a pull request URL
 	parts := strings.Split(url, "/")
-	if contains(parts, "pulls") {
+	if slices.Contains(parts, "pulls") {
 		return true
 	} else {
 		return false
