@@ -48,11 +48,9 @@ type Repo struct {
 }
 
 type MaintainerRepo struct {
-	Id int `gorm:"primaryKey;not null;autoIncrement"`
-
 	// Foreign keys part of MaintainerRepo
-	MaintainerID int `gorm:"index"`
-	RepoID       int `gorm:"index"`
+	MaintainerID int `gorm:"primaryKey;index"`
+	RepoID       int `gorm:"primaryKey;index"`
 }
 
 type Issue struct {
@@ -79,11 +77,10 @@ type Contributor struct {
 
 // join table for contributor and issues
 type ContributorIssue struct {
-	ID int `gorm:"primaryKey;not null;autoIncrement"`
 
 	// Foreign keys part of ContributorIssue
-	ContributorID int `gorm:"uniqueIndex:idx_active_assignee"`
-	IssueID       int `gorm:"index"`
+	ContributorID int `gorm:"primaryKey;uniqueIndex:idx_active_assignee"`
+	IssueID       int `gorm:"primaryKey;index"`
 }
 
 // Append-only
