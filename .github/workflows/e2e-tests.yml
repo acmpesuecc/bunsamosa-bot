@@ -1,0 +1,63 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - CI-setup
+  push:
+    branches:
+      - CI-setup
+
+concurrency:
+  group: bunsamosa-e2e-tests
+  cancel-in-progress: false
+
+jobs:
+  run-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout bunsamosa repo
+        uses: actions/checkout@v4
+
+      - name: Checkout saturn repo
+        uses: actions/checkout@v4
+        with:
+          repository: acmpesuecc/saturn
+          path: saturn
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Create paths
+        run: |
+          pwd
+          ls
+
+      - name: Create bunsamosa config
+        run: |
+          mkdir -p bunsamosa-bot/dev-temp
+          echo "${{ secrets.GH_APP_PRIVATE_KEY }}" > bunsamosa-bot/dev-temp/ci-bunsamosabot.private-key.pem
+          
+          cat > bunsamosa-bot/secrets-dev.yaml <<EOF
+          certPath: dev-temp/ci-bunsamosabot.private-key.pem
+          webhookSecret: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
+          appID: 1024499
+          orgID: 183599010
+          webServerPort: 4000
+          dbPath: test.db
+          timerDaemonURL: http://localhost:3000
+          EOF
+
+      - name: Run bunsamosa (dev mode)
+        run: |
+          make setup-schema
+          make populate-db
+          make &
+
+      - name: Run saturn
+        run: |
+          cd saturn
+          go run . --webhook_url="http://localhost:4000/timer" &
