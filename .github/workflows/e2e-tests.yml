@@ -38,10 +38,10 @@ jobs:
 
       - name: Create bunsamosa config
         run: |
-          mkdir -p bunsamosa-bot/dev-temp
-          echo "${{ secrets.CI_APP_PRIVATE_KEY }}" > bunsamosa-bot/dev-temp/ci-bunsamosabot.private-key.pem
+          mkdir dev-temp
+          echo "${{ secrets.CI_APP_PRIVATE_KEY }}" > dev-temp/ci-bunsamosabot.private-key.pem
           
-          cat > bunsamosa-bot/secrets-dev.yaml <<EOF
+          cat > secrets-dev.yaml <<EOF
           certPath: dev-temp/ci-bunsamosabot.private-key.pem
           webhookSecret: ${{ secrets.CI_APP_WEBHOOK_SECRET }}
           appID: 1024499
@@ -50,7 +50,7 @@ jobs:
           dbPath: test.db
           timerDaemonURL: http://localhost:3000
           EOF
-          cat bunsamosa-bot/secrets-dev.yaml
+          cat secrets-dev.yaml
 
       - name: Run bunsamosa (dev mode)
         run: |
