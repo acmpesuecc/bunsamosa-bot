@@ -39,11 +39,11 @@ jobs:
       - name: Create bunsamosa config
         run: |
           mkdir -p bunsamosa-bot/dev-temp
-          echo "${{ secrets.GH_APP_PRIVATE_KEY }}" > bunsamosa-bot/dev-temp/ci-bunsamosabot.private-key.pem
+          echo "${{ secrets.CI_APP_PRIVATE_KEY }}" > bunsamosa-bot/dev-temp/ci-bunsamosabot.private-key.pem
           
           cat > bunsamosa-bot/secrets-dev.yaml <<EOF
           certPath: dev-temp/ci-bunsamosabot.private-key.pem
-          webhookSecret: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
+          webhookSecret: ${{ secrets.CI_APP_WEBHOOK_SECRET }}
           appID: 1024499
           orgID: 183599010
           webServerPort: 4000
