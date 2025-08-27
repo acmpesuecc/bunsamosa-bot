@@ -54,9 +54,7 @@ jobs:
 
       - name: Run bunsamosa (dev mode)
         run: |
-          make setup-schema
-          make populate-db
-          make &
+          make ci
 
       - name: Run saturn
         run: |
