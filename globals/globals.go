@@ -133,11 +133,11 @@ func (a *App) InitializeLogger() {
 	a.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("INIT").Str("LOGGER")).Msg("Initialized Console Logger")
 }
 
-func (a *App) LeaderboardGetAllRecords() ([]database.ContributorRecordModel, error) {
+func (a *App) LeaderboardGetAllRecords() ([]database.BountyLogging, error) {
 
 	// Get all the time series data present so far
 	// from the database
-	var all_records []database.ContributorRecordModel
+	var all_records []database.BountyLogging
 
 	records, err := a.DBManager.GetAllRecords()
 	if err != nil {
@@ -150,10 +150,10 @@ func (a *App) LeaderboardGetAllRecords() ([]database.ContributorRecordModel, err
 
 }
 
-func (a *App) Leaderboard_GetNonMaterialized() ([]database.ContributorModel, error) {
+func (a *App) Leaderboard_GetNonMaterialized() ([]database.LeaderboardEntry, error) {
 
-	// Get a materialized view of the leaderboard
-	var leaderboard []database.ContributorModel
+	// Get a non-materialized view of the leaderboard
+	var leaderboard []database.LeaderboardEntry
 
 	records, err := a.DBManager.GetLeaderboard()
 	if err != nil {
@@ -166,10 +166,10 @@ func (a *App) Leaderboard_GetNonMaterialized() ([]database.ContributorModel, err
 
 }
 
-func (a *App) Leaderboard_GetMaterialized() ([]database.ContributorModel, error) {
+func (a *App) Leaderboard_GetMaterialized() ([]database.LeaderboardEntry, error) {
 
 	// Get a materialized view of the leaderboard
-	var leaderboard []database.ContributorModel
+	var leaderboard []database.LeaderboardEntry
 
 	records, err := a.DBManager.GetLeaderboardMat()
 	if err != nil {
@@ -182,12 +182,12 @@ func (a *App) Leaderboard_GetMaterialized() ([]database.ContributorModel, error)
 
 }
 
-func (a *App) Leaderboard_GetUserRecords(user string) ([]database.ContributorRecordModel, error) {
+func (a *App) Leaderboard_GetUserRecords(user string) ([]database.BountyLogging, error) {
 	// Take a user's username and return their records
 
 	// Get all the time series data present so far
 	// from the database
-	var all_records []database.ContributorRecordModel
+	var all_records []database.BountyLogging
 
 	records, err := a.DBManager.GetUserRecords(user)
 	if err != nil {

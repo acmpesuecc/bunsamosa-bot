@@ -137,11 +137,13 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		}
 		return
 	}
+
 	dbSuccess, err := globals.AppState.DBManager.AssignIssue(
 		parsedHook.Issue.URL,
 		contributorHandle,
 		parsedHook.Repository.Name,
 	)
+
 	if err != nil {
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
 			Str("contributor", contributorHandle).
@@ -153,8 +155,9 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
 			Str("contributor", contributorHandle).
 			Msg("Failed to assign issue, DB error")
-		// return
+		return
 	}
+
 	globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
 		Str("repoOwner", parsedHook.Repository.Owner.Login).
 		Str("repoName", parsedHook.Repository.Name).

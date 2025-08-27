@@ -1,4 +1,4 @@
-INSERT INTO maintainer_models ('username')
+INSERT INTO maintainers ('username')
 VALUES ('anirudhsudhir'),
 ('bwaklog'),
 ('Delta18-Git'),
