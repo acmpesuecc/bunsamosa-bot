@@ -6,12 +6,13 @@ ci:
 	@echo "\nCleaning db's"
 	rm -rf test.db
 	@echo "\nInitialising schema: Using go run with BUNSAMOSA_DEV_MODE=1"
-	BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run .
-	cat dev/init.sql | sqlite3 test.db
-	@echo "\nUsing go run with BUNSAMOSA_DEV_MODE=1"
 	BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . > /tmp/bunlogs.txt 2>&1 &
+	cat dev/init.sql | sqlite3 test.db
+#	@echo "\nUsing go run with BUNSAMOSA_DEV_MODE=1"
+#	BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run .
 	sleep 5
 	cat /tmp/bunlogs.txt
+
 
 setup-schema:
 	@echo "\nCleaning db's"
