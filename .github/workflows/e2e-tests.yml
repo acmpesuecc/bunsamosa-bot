@@ -50,6 +50,7 @@ jobs:
           dbPath: test.db
           timerDaemonURL: http://localhost:3000
           EOF
+          cat bunsamosa-bot/secrets-dev.yaml
 
       - name: Run bunsamosa (dev mode)
         run: |
