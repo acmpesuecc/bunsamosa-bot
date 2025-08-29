@@ -86,7 +86,7 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	//  time is sent as string ig ?
 	// [GOD]: Yes
 
-	globals.AppState.ZeroLogger.Info().Str("scope", "TIMER_DAEMON").Msgf("Event received: %+v\n", timeoutMessage)
+	globals.AppState.ZeroLogger.Info().Str("scope", "TIMER_DAEMON").Any("timeoutMessage", timeoutMessage).Msg("Event received")
 
 	// Now we handle as needed
 	// maybe call a deassin heree?
@@ -119,8 +119,14 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	)
 
 	if err != nil {
-		globals.AppState.ZeroLogger.Err(err).Str("scope", "TIMER_DAEMON").Msgf("Could not Comment on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
+		globals.AppState.ZeroLogger.Err(err).Str("scope", "TIMER_DAEMON").
+			Str("repoName", emitInterface.Repo).
+			Int64("issueNum", emitInterface.Number).
+			Msg("Could not Comment on Issue")
 	} else {
-		globals.AppState.ZeroLogger.Info().Str("scope", "TIMER_DAEMON").Msgf("Successfully Commented on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
+		globals.AppState.ZeroLogger.Info().Str("scope", "TIMER_DAEMON").
+			Str("repoName", emitInterface.Repo).
+			Int64("issueNum", emitInterface.Number).
+			Msg("Successfully Commented on Issue")
 	}
 }

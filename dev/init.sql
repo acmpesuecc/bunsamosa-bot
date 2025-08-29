@@ -1,11 +1,11 @@
-INSERT INTO maintainer_models ('username')
+INSERT INTO maintainers ('github_handle')
 VALUES ('anirudhsudhir'),
 ('bwaklog'),
 ('Delta18-Git'),
 ('Dedlad');
 
 INSERT INTO contributors ('github_handle')
-VALUES ('@anirudhsudhir'),
-('@bwaklog'),
-('@Delta18-Git'),
-('@Dedlad');
+VALUES ('anirudhsudhir'),
+('bwaklog'),
+('Delta18-Git'),
+('Dedlad');
