@@ -18,7 +18,7 @@ const bountyPattern = `^!bounty\s+(\d+)$`
 const assignPattern = `^!assign\s+@(\S+)\s*(\d*)$`
 const deassignPattern = `^!deassign$`
 const withdrawPattern = `^!withdraw$`
-const extendPattern = `^!extend(\s+\d+)$`
+const extendPattern = `^!extend\s*(\d+)?$`
 
 // var commandRegex = regexp.MustCompile(`^!\w+`)
 var commandRegex = regexp.MustCompile(`^!.+`)
@@ -73,11 +73,11 @@ func parseAssign(comment string, logger *zerolog.Logger) (string, int, bool) {
 		message := strings.Split(strings.Trim(matches[0], " "), " ")
 		var duration int
 		var err error
-		handle := message[1]
+		handle := matches[1]
 		fmt.Println(message)
 		// If time is defined
-		if len(message) > 2 {
-			durationStr := message[2]
+		if len(matches) > 2 && matches[2] != "" {
+			durationStr := matches[2]
 			duration, err = strconv.Atoi(durationStr)
 			logger.Info().Str("scope", "PARSE_ASSIGN").Str("contributor_handle", handle).Int("duration", duration).Msg("Successfully parsed `assign` comment")
 			return handle, duration, err == nil
@@ -98,21 +98,22 @@ func parseAssign(comment string, logger *zerolog.Logger) (string, int, bool) {
 func parseExtend(comment string) (int, bool) {
 	comment = strings.TrimLeft(comment, " ")
 	matches := extendRegex.FindStringSubmatch(comment)
-	if len(matches) > 0 {
-		message := strings.Split(strings.Trim(matches[0], " "), " ")
-		// If time is defined
-		if len(message) > 2 {
-			timeStr := strings.Trim(message[1], " ")
-			time, err := strconv.Atoi(timeStr)
-			return time, err == nil
-		} else {
-			// default time
-			return defaultExtension, true
-		}
-
-	} else {
+	if len(matches) == 0 {
 		return -1, false
 	}
+	// If time is defined
+	if len(matches) > 1 && matches[1] != "" {
+		timeStr := matches[1]
+		time, err := strconv.Atoi(timeStr)
+		if err != nil {
+			return -1, false
+		}
+		return time, true
+	} else {
+		// default time
+		return defaultExtension, true
+	}
+
 }
 
 // Function to check if a URL is a Pull Request URL

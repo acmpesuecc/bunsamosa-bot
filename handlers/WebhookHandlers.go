@@ -169,7 +169,7 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		parsedHook.Repository.Owner.Login,
 		parsedHook.Repository.Name,
 		int(parsedHook.Issue.Number),
-		[]string{contributorHandle[1:]},
+		[]string{contributorHandle},
 	)
 	if err != nil {
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("GH_API")).
@@ -194,7 +194,7 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 	}
 
 	request := TimeoutEvent{
-		EventID:     contributorHandle,
+		EventID:     "@" + contributorHandle,
 		TimeoutSecs: time * 60, // in minutes
 		Emit:        string(emitJson),
 	}
@@ -401,7 +401,7 @@ func withdrawIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 
 	dbSuccess, err := globals.AppState.DBManager.WithdrawIssue(
 		parsedHook.Issue.URL,
-		"@"+contributorHandle,
+		contributorHandle,
 	)
 	if err != nil {
 		if parsedHook.Issue.Assignee == nil {
@@ -518,7 +518,7 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 	if !success {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
 			Str("sender", parsedHook.Sender.Login).
-			Str("issueURL", "parsedHook.Issue.URL").
+			Str("issueURL", parsedHook.Issue.URL).
 			Msg("Failed to extend issue")
 		return
 	}
@@ -700,7 +700,7 @@ func newPRCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 		return
 	}
 
-	globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("BOUNTY").Str("PR_COMMENT_HANDLER")).
+	globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("BOUNTY").Str("PR_COMMENT_HANDLER")).
 		Str("repoName", parsedHook.Repository.FullName).
 		Int64("prNum", parsedHook.Issue.Number).
 		Str("prName", parsedHook.Issue.Title).

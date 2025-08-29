@@ -153,7 +153,7 @@ func (manager *DBManager) AssignBounty(
 		// recalculate total bounties of contributors
 		var contribBounties []ContributorBounty
 		result = tx.Model(&BountyLogging{}).
-			Select("contributor_id, SUM(assigned_bounty) as total_bounty, ? as updated_at", time.Now()).
+			Select("contributor_id, SUM(assigned_bounty) as total_bounty").
 			Group("contributor_id").
 			Scan(&contribBounties)
 		if result.Error != nil {
@@ -161,6 +161,11 @@ func (manager *DBManager) AssignBounty(
 				Err(result.Error).
 				Msg("Could Not Recompute ContributorBounty")
 			return result.Error
+		}
+
+		currentTime := time.Now()
+		for i := range contribBounties {
+			contribBounties[i].UpdatedAt = currentTime
 		}
 
 		// updating total bounty (upsert)
@@ -190,7 +195,12 @@ func (manager *DBManager) GetAllRecords() ([]BountyLogging, error) {
 	// Fetch from the database
 	manager.zeroLogger.Info().Array("scope", zerolog.Arr().Str("DBMANAGER").Str("RECORDS")).
 		Msg("Fetching all records")
-	fetch_result := manager.db.Find(&records)
+	fetch_result := manager.db.
+		Preload("Contributor").
+		Preload("Contributor.Issues").
+		Preload("Issue").
+		Preload("Issue.Contributors").
+		Preload("Issue.Repo").Find(&records)
 
 	if fetch_result.Error != nil {
 		manager.zeroLogger.Error().Array("scope", zerolog.Arr().Str("DBMANAGER").Str("RECORDS")).
@@ -218,7 +228,10 @@ func (manager *DBManager) GetUserRecords(contributor string) ([]BountyLogging, e
 	fetch_result := manager.db.
 		Joins("JOIN contributors ON contributors.id = bounty_loggings.contributor_id").
 		Where("contributors.github_handle like ?", contributor).
-		Preload("Issue").Order("bounty_loggings.created_at desc").Find(&records)
+		Preload("Contributor").
+		Preload("Contributor.Issues").
+		Preload("Issue").
+		Preload("Issue.Repo").Order("bounty_loggings.created_at desc").Find(&records)
 	// fetch_result := manager.db.Raw(query, contributor).Scan(&records)
 
 	if fetch_result.Error != nil {
@@ -357,7 +370,7 @@ func (manager *DBManager) AssignIssue(issueURL string, contributorHandle string,
 	err := manager.db.Transaction(func(tx *gorm.DB) error {
 		var issueData Issue
 		// Fetch the record with matching conditions or create a new record (lock row to prevent race)
-		result = tx.Clauses(clause.Locking{Strength: "UPDATE"}).FirstOrCreate(&issueData, &Issue{URL: issueURL, RepoID: repoData.ID})
+		result = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("Contributors").FirstOrCreate(&issueData, &Issue{URL: issueURL, RepoID: repoData.ID})
 		if result.Error != nil {
 			manager.zeroLogger.Error().Array("scope", zerolog.Arr().Str("DBMANAGER").Str("ASSIGN")).
 				Err(result.Error).Str("issue_url", issueURL).Msg("Could not obtain repo from Issues table")
@@ -420,7 +433,7 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 			Str("issue_url", issueURL).Msg("Obtaining the id of issue from Issue Table")
 
 		// Fetch the issue record from the Issues table
-		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("url = ?", issueURL).First(&issueData)
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("Contributors").Where("url = ?", issueURL).First(&issueData)
 		if result.Error != nil {
 			// If the issue is not found, log and return false without an error (check for this outside transaction)
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -456,7 +469,7 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 		clearErr := tx.Model(&issueData).Association("Contributors").Clear()
 		if clearErr != nil {
 			manager.zeroLogger.Error().Array("scope", zerolog.Arr().Str("DBMANAGER").Str("DEASSIGN")).
-				Err(result.Error).Int("issue_id", issueData.ID).Int("contributor_id", issueData.Contributors[0].ID).
+				Err(result.Error).Int("issue_id", issueData.ID).
 				Msg("Could not remove assignment of issue for contributor")
 			return result.Error
 		}
@@ -465,7 +478,7 @@ func (manager *DBManager) DeassignIssue(issueURL string) (bool, error) {
 		issueData.Status = false
 		result = tx.Save(&issueData)
 		if result.Error != nil {
-			manager.zeroLogger.Error().Array("scope", zerolog.Arr().Str("DBMANAGER").Str("DEASSIGN")).
+			manager.zeroLogger.Error().Err(result.Error).Array("scope", zerolog.Arr().Str("DBMANAGER").Str("DEASSIGN")).
 				Err(result.Error).Int("issue_id", issueData.ID).Msg("Could not update status of issue")
 			return result.Error
 		}
