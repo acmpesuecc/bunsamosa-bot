@@ -11,3 +11,6 @@ vector.yml
 
 dev-temp/
 logs/
+jenkins-ci/*.bak
+CI-Repo-Bunsamosa/
+jenkins-ci/CI-RepoBunsamosa/
