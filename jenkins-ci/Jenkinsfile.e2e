@@ -3,34 +3,18 @@ pipeline {
 
     environment {
         WEBHOOK_SECRET = credentials('bunsamosa-webhook-secret')
-        CERT_FILE = credentials('bunsamosa-private-key')
+        CERT_FILE      = credentials('bunsamosa-private-key')
     }
 
     stages {
-        stage('Checkout Saturn') {
+        stage('Prepare') {
             steps {
+                // Checkout repos + setup secrets file
                 dir('saturn') {
                     git url: 'https://github.com/acmpesuecc/saturn', branch: 'main'
                 }
-            }
-        }
-
-        stage('Run Saturn') {
-            steps {
-                dir('saturn') {
-                    sh 'nohup go run . --webhook_url="http://localhost:4000" > saturn.log 2>&1 & echo $! > saturn.pid'
-                }
-            }
-        }
-
-        stage('Checkout Bunsamosa') {
-            steps {
                 checkout scm
-            }
-        }
 
-        stage('Setup Secrets File') {
-            steps {
                 sh '''
                 mkdir -p dev-temp
                 cp "$CERT_FILE" dev-temp/ci-bunsamosabot.2025-08-27.private-key.pem
@@ -49,36 +33,30 @@ pipeline {
             }
         }
 
-        stage('Run Bunsamosa') {
-            steps {
-                sh 'nohup make ci > bunsamosa.log 2>&1 & echo $! > bunsamosa.pid'
+        stage('Run & Test') {
+            parallel {
+                stage('Saturn') {
+                    steps {
+                        dir('saturn') {
+                            sh 'go run . --webhook_url="http://localhost:4000"'
+                        }
+                    }
+                }
+                stage('Bunsamosa') {
+                    steps {
+                        sh 'make ci'
+                    }
+                }
+                stage('PingCheck') {
+                    steps {
+                        // Wait a bit for services, then call /ping
+                        sh '''
+                        sleep 20
+                        curl -f http://localhost:4000/ping
+                        '''
+                    }
+                }
             }
-        }
-
-        stage('Ping Check') {
-            steps {
-                sh '''
-                echo "Waiting 5s for service to come up..."
-                sleep 5
-                curl -f http://localhost:4000/ping
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            echo "Cleaning up background processes"
-            sh '''
-            if [ -f saturn/saturn.pid ]; then
-                kill $(cat saturn/saturn.pid) || true
-                rm saturn/saturn.pid
-            fi
-            if [ -f bunsamosa.pid ]; then
-                kill $(cat bunsamosa.pid) || true
-                rm bunsamosa.pid
-            fi
-            '''
         }
     }
 }
