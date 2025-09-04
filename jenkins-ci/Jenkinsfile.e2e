@@ -1,0 +1,85 @@
+pipeline {
+    agent any
+
+    environment {
+        # Inject secrets from Jenkins credentials store
+        WEBHOOK_SECRET = credentials('bunsamosa-webhook-secret')  // must be created in Jenkins
+        CERT_FILE = credentials('bunsamosa-private-key')          // must be created in Jenkins (Secret file type)
+    }
+
+    stages {
+        stage('Checkout Saturn') {
+            steps {
+                dir('saturn') {
+                    git url: 'https://github.com/acmpesuecc/saturn', branch: 'main'
+                }
+            }
+        }
+
+        stage('Run Saturn') {
+            steps {
+                dir('saturn') {
+                    sh 'nohup go run . --webhook_url="http://localhost:4000" > saturn.log 2>&1 & echo $! > saturn.pid'
+                }
+            }
+        }
+
+        stage('Checkout Bunsamosa') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Setup Secrets File') {
+            steps {
+                sh '''
+                mkdir -p dev-temp
+                cp "$CERT_FILE" dev-temp/ci-bunsamosabot.2025-08-27.private-key.pem
+
+                cat > secrets-dev.yaml <<EOF
+                certPath: dev-temp/ci-bunsamosabot.2025-08-27.private-key.pem
+                webhookSecret: $WEBHOOK_SECRET
+                appID: 1024499
+                orgID: 183599010
+
+                webServerPort: 4000
+                dbPath: test.db
+                timerDaemonURL: http://localhost:3000
+                EOF
+                '''
+            }
+        }
+
+        stage('Run Bunsamosa') {
+            steps {
+                sh 'nohup make ci > bunsamosa.log 2>&1 & echo $! > bunsamosa.pid'
+            }
+        }
+
+        stage('Ping Check') {
+            steps {
+                sh '''
+                echo "Waiting 5s for service to come up..."
+                sleep 5
+                curl -f http://localhost:4000/ping
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Cleaning up background processes"
+            sh '''
+            if [ -f saturn/saturn.pid ]; then
+                kill $(cat saturn/saturn.pid) || true
+                rm saturn/saturn.pid
+            fi
+            if [ -f bunsamosa.pid ]; then
+                kill $(cat bunsamosa.pid) || true
+                rm bunsamosa.pid
+            fi
+            '''
+        }
+    }
+}
