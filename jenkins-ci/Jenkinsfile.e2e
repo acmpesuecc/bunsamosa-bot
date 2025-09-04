@@ -1,5 +1,8 @@
 pipeline {
     agent any
+    tools {
+        go '1.23.2'
+    }
 
     environment {
         WEBHOOK_SECRET = credentials('bunsamosa-webhook-secret')
