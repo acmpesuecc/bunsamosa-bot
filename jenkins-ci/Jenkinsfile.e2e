@@ -16,11 +16,8 @@ pipeline {
                 checkout scm
 
                 sh '''
-                mkdir -p dev-temp
-                cp "$CERT_FILE" dev-temp/ci-bunsamosabot.2025-08-27.private-key.pem
-
                 cat > secrets-dev.yaml <<EOF
-                certPath: dev-temp/ci-bunsamosabot.2025-08-27.private-key.pem
+                certPath: $CERT_FILE
                 webhookSecret: $WEBHOOK_SECRET
                 appID: 1024499
                 orgID: 183599010
