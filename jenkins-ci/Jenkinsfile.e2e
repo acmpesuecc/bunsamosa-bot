@@ -2,9 +2,8 @@ pipeline {
     agent any
 
     environment {
-        # Inject secrets from Jenkins credentials store
-        WEBHOOK_SECRET = credentials('bunsamosa-webhook-secret')  // must be created in Jenkins
-        CERT_FILE = credentials('bunsamosa-private-key')          // must be created in Jenkins (Secret file type)
+        WEBHOOK_SECRET = credentials('bunsamosa-webhook-secret')
+        CERT_FILE = credentials('bunsamosa-private-key')
     }
 
     stages {
