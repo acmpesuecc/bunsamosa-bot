@@ -53,6 +53,7 @@ timerDaemonURL: "http://localhost:3000"
                 stage('Bunsamosa Run') {
                     steps {
                         sh '''
+                        rm -rf test.db
                         fuser -k 4000/tcp || true
                         BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" timeout 7 go run . || true
                         cat dev/init.sql | sqlite3 test.db
