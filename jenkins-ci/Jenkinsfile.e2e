@@ -35,23 +35,23 @@ pipeline {
 
         stage('Run & Test') {
             parallel {
-                stage('Saturn') {
+                stage('Saturn Run') {
                     steps {
                         dir('saturn') {
                             sh 'go run . --webhook_url="http://localhost:4000"'
                         }
                     }
                 }
-                stage('Bunsamosa') {
+                stage('Bunsamosa Run') {
                     steps {
-                        sh 'make ci'
+                        sh 'BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run .'
                     }
                 }
                 stage('PingCheck') {
                     steps {
                         // Wait a bit for services, then call /ping
                         sh '''
-                        sleep 20
+                        sleep 30
                         curl -f http://localhost:4000/ping
                         '''
                     }
