@@ -42,7 +42,7 @@ timerDaemonURL: "http://localhost:3000"
         }
 
         stage('Run & Test') {
-            failfast true
+            failFast true
             parallel {
                 stage('Saturn Run') {
                     steps {
