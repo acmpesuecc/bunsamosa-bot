@@ -3,6 +3,10 @@ pipeline {
     tools {
         go '1.23.2'
     }
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 10, unit: 'MINUTES')
+    }
 
     environment {
         WEBHOOK_SECRET = credentials('bunsamosa-webhook-secret')
@@ -30,6 +34,7 @@ pipeline {
                 timerDaemonURL: http://localhost:3000
                 EOF
                 '''
+                cat secrets-dev.yaml
             }
         }
 
@@ -38,23 +43,26 @@ pipeline {
                 stage('Saturn Run') {
                     steps {
                         dir('saturn') {
-                            sh(script: '''
+                            sh '''
                             fuser -k 3000/tcp || true
                             go run . --webhook_url="http://localhost:4000"
-                            ''', background: true)
+                            '''
                         }
                     }
                 }
                 stage('Bunsamosa Run') {
                     steps {
-                        sh 'BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run .'
+                        sh '''
+                        fuser -k 4000/tcp || true
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run .
+                        '''
                     }
                 }
                 stage('PingCheck') {
                     steps {
                         // Wait a bit for services, then call /ping
                         sh '''
-                        sleep 30
+                        sleep 60
                         curl -f http://localhost:4000/ping
                         '''
                     }
