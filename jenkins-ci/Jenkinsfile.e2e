@@ -42,6 +42,7 @@ timerDaemonURL: "http://localhost:3000"
         }
 
         stage('Run & Test') {
+            failfast true
             parallel {
                 stage('Saturn Run') {
                     steps {
@@ -58,15 +59,23 @@ timerDaemonURL: "http://localhost:3000"
                     steps {
                         sh '''
                         fuser -k 4000/tcp || true
-                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . & echo $! > $WORKSPACE/bunsamosa.pid; wait -n $(cat $WORKSPACE/bunsamosa.pid) || true
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . & echo $! > $WORKSPACE/bunsamosa.pid; wait $(cat $WORKSPACE/bunsamosa.pid) || true
                         '''
                     }
                 }
                 stage('PingCheck') {
+                    options {
+                        timeout(time: 3, unit: 'MINUTES')
+                    }
                     steps {
                         // Wait a bit for services, then call /ping
                         sh '''
-                        sleep 60
+                        while [ ! -f $WORKSPACE/saturn.pid ]; do
+                          sleep 1
+                        done
+                        while [ ! -f $WORKSPACE/bunsamosa.pid ]; do
+                          sleep 1
+                        done
                         ps -p $(cat $WORKSPACE/saturn.pid)
                         ps -p $(cat $WORKSPACE/bunsamosa.pid)
                         curl -f http://localhost:4000/ping
