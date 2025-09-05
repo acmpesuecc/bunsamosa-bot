@@ -47,8 +47,9 @@ timerDaemonURL: "http://localhost:3000"
                     steps {
                         dir('saturn') {
                             sh '''
+                            #!/bin/bash
                             fuser -k 3000/tcp || true
-                            go run . --webhook_url="http://localhost:4000" & echo $! > $WORKSPACE/saturn.pid; wait -n $(cat $WORKSPACE/saturn.pid) || true
+                            go run . --webhook_url="http://localhost:4000" & echo $! > $WORKSPACE/saturn.pid; wait $(cat $WORKSPACE/saturn.pid) || true
                             '''
                         }
                     }
@@ -74,8 +75,8 @@ timerDaemonURL: "http://localhost:3000"
                     post {
                         always {
                             sh '''
-                            while ps -p $(cat $WORKSPACE/saturn.pid); do sudo kill -9 $(cat $WORKSPACE/saturn.pid); done
-                            while ps -p $(cat $WORKSPACE/bunsamosa.pid); do sudo kill -9 $(cat $WORKSPACE/bunsamosa.pid); done
+                            while ps -p $(cat $WORKSPACE/saturn.pid); do kill -9 $(cat $WORKSPACE/saturn.pid); done
+                            while ps -p $(cat $WORKSPACE/bunsamosa.pid); do kill -9 $(cat $WORKSPACE/bunsamosa.pid); done
                             sleep 5
                             '''
                         }
