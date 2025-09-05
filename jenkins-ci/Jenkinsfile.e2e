@@ -62,7 +62,7 @@ timerDaemonURL: "http://localhost:3000"
                         '''
                     }
                 }
-                stage('PingCheck') {
+                stage('Go E2E Test') {
                     steps {
                         // TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
 
