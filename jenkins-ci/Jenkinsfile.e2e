@@ -42,6 +42,7 @@ timerDaemonURL: "http://localhost:3000"
         }
 
         stage('Run & Test') {
+            failFast true
             parallel {
                 stage('Saturn Run') {
                     steps {
@@ -67,8 +68,7 @@ timerDaemonURL: "http://localhost:3000"
                         // Wait a bit for services, then call /ping
                         sh '''
                         sleep 25
-                        ps -p $(cat $WORKSPACE/saturn.pid)
-                        ps -p $(cat $WORKSPACE/bunsamosa.pid)
+                        ps -p 207782
                         curl -f http://localhost:4000/ping
                         '''
 
