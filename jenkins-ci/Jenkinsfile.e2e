@@ -42,7 +42,6 @@ timerDaemonURL: "http://localhost:3000"
         }
 
         stage('Run & Test') {
-            failFast true
             parallel {
                 stage('Saturn Run') {
                     steps {
@@ -50,7 +49,7 @@ timerDaemonURL: "http://localhost:3000"
                             sh '''
                             #!/bin/bash
                             fuser -k 3000/tcp || true
-                            go run . --webhook_url="http://localhost:4000" & echo $! > $WORKSPACE/saturn.pid; wait $(cat $WORKSPACE/saturn.pid) || true
+                            echo $$ > $WORKSPACE/saturn.pid & exec go run . --webhook_url="http://localhost:4000"
                             '''
                         }
                     }
@@ -64,18 +63,10 @@ timerDaemonURL: "http://localhost:3000"
                     }
                 }
                 stage('PingCheck') {
-                    options {
-                        timeout(time: 3, unit: 'MINUTES')
-                    }
                     steps {
                         // Wait a bit for services, then call /ping
                         sh '''
-                        while [ ! -f $WORKSPACE/saturn.pid ]; do
-                          sleep 1
-                        done
-                        while [ ! -f $WORKSPACE/bunsamosa.pid ]; do
-                          sleep 1
-                        done
+                        sleep 25
                         ps -p $(cat $WORKSPACE/saturn.pid)
                         ps -p $(cat $WORKSPACE/bunsamosa.pid)
                         curl -f http://localhost:4000/ping
