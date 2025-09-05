@@ -49,7 +49,7 @@ timerDaemonURL: "http://localhost:3000"
                             sh '''
                             #!/bin/bash
                             fuser -k 3000/tcp || true
-                            echo $$ > $WORKSPACE/saturn.pid & exec go run . --webhook_url="http://localhost:4000"
+                            go run . --webhook_url="http://localhost:4000"
                             '''
                         }
                     }
@@ -58,7 +58,7 @@ timerDaemonURL: "http://localhost:3000"
                     steps {
                         sh '''
                         fuser -k 4000/tcp || true
-                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . & echo $! > $WORKSPACE/bunsamosa.pid; wait $(cat $WORKSPACE/bunsamosa.pid) || true
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run .
                         '''
                     }
                 }
@@ -71,14 +71,10 @@ timerDaemonURL: "http://localhost:3000"
                         ps -p $(cat $WORKSPACE/bunsamosa.pid)
                         curl -f http://localhost:4000/ping
                         '''
-                    }
-                    post {
-                        always {
-                            sh '''
-                            while ps -p $(cat $WORKSPACE/saturn.pid); do kill -9 $(cat $WORKSPACE/saturn.pid); done
-                            while ps -p $(cat $WORKSPACE/bunsamosa.pid); do kill -9 $(cat $WORKSPACE/bunsamosa.pid); done
-                            sleep 5
-                            '''
+
+                        script {
+                            currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
+                            sleep(1)   // Interrupt is not blocking and does not take effect immediately.
                         }
                     }
                 }
