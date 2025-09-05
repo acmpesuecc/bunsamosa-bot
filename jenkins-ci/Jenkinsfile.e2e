@@ -46,7 +46,7 @@ timerDaemonURL: "http://localhost:3000"
                             sh '''
                             #!/bin/bash
                             fuser -k 3000/tcp || true
-                            go run . --webhook_url="http://localhost:4000" &
+                            go run . --webhook_url="http://localhost:4000/timer" &
                             '''
                         }
                     }
@@ -58,7 +58,6 @@ timerDaemonURL: "http://localhost:3000"
                         fuser -k 4000/tcp || true
                         BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" timeout 5 go run . || true
                         cat dev/init.sql | sqlite3 test.db
-                        echo "select * from maintainers;" | sqlite3 test.db
                         BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . &
                         '''
                     }
