@@ -2,7 +2,6 @@ pipeline {
     agent any
     tools {
         go '1.23.2'
-        sqlite3
     }
     options {
         disableConcurrentBuilds()
