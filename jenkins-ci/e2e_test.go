@@ -143,7 +143,7 @@ func TestAssignDeassign(t *testing.T) {
 	}
 
 	// Wait for bot
-	time.Sleep(15 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	// Step 5: Verify assignee removed
 	updatedIssue, _, err = client.Issues.Get(ctx, repoOwner, repoName, issueNumber)
