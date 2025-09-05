@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	_ "crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -15,14 +14,21 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Replace with your GitHub App details
 const (
-	appID          = 1024499  // your GitHub App ID
-	installationID = 84355045 // your installation ID
+	appID          = 1024499
+	installationID = 84355045
 	repoOwner      = "foobaruwu"
 	repoName       = "CI-Repo-Bunsamosa"
 	assignee       = "DedLad"
 )
+
+var (
+	globalClient   *github.Client
+	globalIssueNum int
+	globalContext  = context.Background()
+)
+
+// --- Auth helpers ---
 
 func generateJWT(t *testing.T) string {
 	keyPath := os.Getenv("CERT_FILE")
@@ -59,7 +65,6 @@ func getInstallationToken(ctx context.Context, t *testing.T, jwt string) string 
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	// Create installation token
 	token, _, err := client.Apps.CreateInstallationToken(ctx, installationID, nil)
 	if err != nil {
 		t.Fatalf("failed to create installation token: %v", err)
@@ -67,66 +72,91 @@ func getInstallationToken(ctx context.Context, t *testing.T, jwt string) string 
 	return token.GetToken()
 }
 
-func TestAssignDeassign(t *testing.T) {
-	ctx := context.Background()
+// --- Setup / Teardown ---
+
+func setupIssue(t *testing.T) (*github.Client, int) {
 	jwt := generateJWT(t)
-	token := getInstallationToken(ctx, t, jwt)
+	token := getInstallationToken(globalContext, t, jwt)
 
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	tc := oauth2.NewClient(ctx, ts)
+	tc := oauth2.NewClient(globalContext, ts)
 	client := github.NewClient(tc)
 
-	// Step 1: Create issue
+	// Create issue
 	issueReq := &github.IssueRequest{
-		Title: github.String("CI-Issue-pending"), // temporary
+		Title: github.String("CI-Issue-pending"),
 		Body:  github.String("Testing assignment and deassignment flow"),
 	}
-	issue, _, err := client.Issues.Create(ctx, repoOwner, repoName, issueReq)
+	issue, _, err := client.Issues.Create(globalContext, repoOwner, repoName, issueReq)
 	if err != nil {
 		t.Fatalf("failed to create issue: %v", err)
 	}
 	issueNumber := issue.GetNumber()
+	t.Logf("Created issue #%d", issueNumber)
 
-	// Step 1b: Update title to include real number
+	// Update title to actual number
 	updateReq := &github.IssueRequest{
 		Title: github.String(fmt.Sprintf("CI-Issue-%d", issueNumber)),
 	}
-	_, _, err = client.Issues.Edit(ctx, repoOwner, repoName, issueNumber, updateReq)
+	_, _, err = client.Issues.Edit(globalContext, repoOwner, repoName, issueNumber, updateReq)
 	if err != nil {
 		t.Fatalf("failed to update issue title: %v", err)
 	}
 
-	// Defer cleanup: close the issue at the end of the test
-	defer func() {
-		state := "closed"
-		_, _, err := client.Issues.Edit(ctx, repoOwner, repoName, issueNumber, &github.IssueRequest{
-			State: &state,
-		})
-		if err != nil {
-			t.Logf("⚠️ failed to close issue #%d: %v", issueNumber, err)
-		}
-	}()
-
-	// Wait a few seconds before commenting, to ensure bot sees the new issue
+	// Give bot time
 	time.Sleep(5 * time.Second)
 
-	// Step 2: Comment "!assign @Dedlad"
-	comment := &github.IssueComment{Body: github.String("!assign @" + assignee)}
-	_, _, err = client.Issues.CreateComment(ctx, repoOwner, repoName, issueNumber, comment)
-	if err != nil {
-		t.Fatalf("failed to create comment: %v", err)
-	}
+	return client, issueNumber
+}
 
-	// Wait for bot to process
+func teardownIssue(t *testing.T, client *github.Client, issueNumber int) {
+	state := "closed"
+	_, _, err := client.Issues.Edit(globalContext, repoOwner, repoName, issueNumber, &github.IssueRequest{
+		State: &state,
+	})
+	if err != nil {
+		t.Logf("⚠️ failed to close issue #%d: %v", issueNumber, err)
+	} else {
+		t.Logf("Closed issue #%d", issueNumber)
+	}
+}
+
+// --- Main entry for tests ---
+func TestMain(m *testing.M) {
+	// Setup once
+	client, issueNum := setupIssue(&testing.T{})
+	globalClient = client
+	globalIssueNum = issueNum
+
+	// Run tests
+	code := m.Run()
+
+	// Teardown once
+	teardownIssue(&testing.T{}, globalClient, globalIssueNum)
+
+	os.Exit(code)
+}
+
+// --- Tests ---
+
+func TestAssignDeassign(t *testing.T) {
+	ctx := globalContext
+
+	// Assign
+	comment := &github.IssueComment{Body: github.String("!assign @" + assignee)}
+	_, _, err := globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, comment)
+	if err != nil {
+		t.Fatalf("failed to create assign comment: %v", err)
+	}
 	time.Sleep(10 * time.Second)
 
-	// Step 3: Verify assignee present
-	updatedIssue, _, err := client.Issues.Get(ctx, repoOwner, repoName, issueNumber)
+	// Verify assignee
+	updated, _, err := globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
 	if err != nil {
 		t.Fatalf("failed to fetch issue: %v", err)
 	}
 	found := false
-	for _, a := range updatedIssue.Assignees {
+	for _, a := range updated.Assignees {
 		if a.GetLogin() == assignee {
 			found = true
 		}
@@ -135,24 +165,68 @@ func TestAssignDeassign(t *testing.T) {
 		t.Fatalf("expected %s to be assigned, but not found", assignee)
 	}
 
-	// Step 4: Comment "!deassign"
-	deassignComment := &github.IssueComment{Body: github.String("!deassign")}
-	_, _, err = client.Issues.CreateComment(ctx, repoOwner, repoName, issueNumber, deassignComment)
+	// Deassign
+	deassign := &github.IssueComment{Body: github.String("!deassign")}
+	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, deassign)
 	if err != nil {
 		t.Fatalf("failed to create deassign comment: %v", err)
 	}
-
-	// Wait for bot
 	time.Sleep(10 * time.Second)
 
-	// Step 5: Verify assignee removed
-	updatedIssue, _, err = client.Issues.Get(ctx, repoOwner, repoName, issueNumber)
+	// Verify unassigned
+	updated, _, err = globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
 	if err != nil {
 		t.Fatalf("failed to fetch issue: %v", err)
 	}
-	for _, a := range updatedIssue.Assignees {
+	for _, a := range updated.Assignees {
 		if a.GetLogin() == assignee {
 			t.Fatalf("expected %s to be unassigned, but still present", assignee)
+		}
+	}
+}
+
+func TestAssignDeassignFormatted(t *testing.T) {
+	ctx := globalContext
+
+	// Assign with space + newline
+	comment := &github.IssueComment{Body: github.String(" !assign @" + assignee + "\n")}
+	_, _, err := globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, comment)
+	if err != nil {
+		t.Fatalf("failed to create formatted assign comment: %v", err)
+	}
+	time.Sleep(10 * time.Second)
+
+	// Verify assignee
+	updated, _, err := globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
+	if err != nil {
+		t.Fatalf("failed to fetch issue: %v", err)
+	}
+	found := false
+	for _, a := range updated.Assignees {
+		if a.GetLogin() == assignee {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected %s to be assigned with formatted command, but not found", assignee)
+	}
+
+	// Deassign with space + newline
+	deassign := &github.IssueComment{Body: github.String(" !deassign\n")}
+	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, deassign)
+	if err != nil {
+		t.Fatalf("failed to create formatted deassign comment: %v", err)
+	}
+	time.Sleep(10 * time.Second)
+
+	// Verify unassigned
+	updated, _, err = globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
+	if err != nil {
+		t.Fatalf("failed to fetch issue: %v", err)
+	}
+	for _, a := range updated.Assignees {
+		if a.GetLogin() == assignee {
+			t.Fatalf("expected %s to be unassigned with formatted command, but still present", assignee)
 		}
 	}
 }
