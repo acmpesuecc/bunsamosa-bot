@@ -23,12 +23,12 @@ pipeline {
                 checkout scm
 
                 writeFile file: 'secrets-dev.yaml', text: '''certPath: $CERT_FILE
-                webhookSecret: $WEBHOOK_SECRET
-                appID: 1024499
-                orgID: 183599010
-                webServerPort: 4000
-                dbPath: test.db
-                timerDaemonURL: "http://localhost:3000"'''
+webhookSecret: $WEBHOOK_SECRET
+appID: 1024499
+orgID: 183599010
+webServerPort: 4000
+dbPath: test.db
+timerDaemonURL: "http://localhost:3000"'''
 
                 sh '''
                 ls -l
