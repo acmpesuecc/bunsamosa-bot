@@ -38,7 +38,10 @@ pipeline {
                 stage('Saturn Run') {
                     steps {
                         dir('saturn') {
-                            sh 'go run . --webhook_url="http://localhost:4000"'
+                            sh(script: '''
+                            fuser -k 3000/tcp || true
+                            go run . --webhook_url="http://localhost:4000"
+                            ''', background: true)
                         }
                     }
                 }
