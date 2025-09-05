@@ -56,12 +56,16 @@ timerDaemonURL: "http://localhost:3000"
                         sh '''
                         rm -rf test.db
                         fuser -k 4000/tcp || true
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" timeout 5 go run . || true
+                        cat dev/init.sql | sqlite3 test.db
+                        echo "select * from maintainers;" | sqlite3 test.db
                         BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run .
                         '''
                     }
                 }
                 stage('PingCheck') {
                     steps {
+                        // TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
 
                         sh '''
                         logfile=/tmp/bore.log
@@ -73,7 +77,6 @@ timerDaemonURL: "http://localhost:3000"
                         port=$(grep -oE 'listening at jenkins.smuz.me:[0-9]+' "$logfile" | tail -n1 | cut -d: -f2)
                         addr="jenkins.smuz.me:$port"
 
-                        //TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
                         jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
 
                         json=$(jq -n \
@@ -89,9 +92,6 @@ timerDaemonURL: "http://localhost:3000"
                           -d "$json"
 
                         sleep 10
-
-                        cat dev/init.sql | sqlite3 test.db
-                        echo "select * from maintainers;" | sqlite3 test.db
 
                         go test jenkins-ci/e2e_test.go
                         '''
