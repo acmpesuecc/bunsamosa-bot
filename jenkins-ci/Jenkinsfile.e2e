@@ -2,6 +2,7 @@ pipeline {
     agent any
     tools {
         go '1.23.2'
+        sqlite3
     }
     options {
         disableConcurrentBuilds()
@@ -33,11 +34,6 @@ timerDaemonURL: "http://localhost:3000"
 """
                     writeFile file: 'secrets-dev.yaml', text: content
                 }
-
-                sh '''
-                ls -l
-                cat secrets-dev.yaml
-                '''
             }
         }
 
