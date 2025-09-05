@@ -33,8 +33,9 @@ pipeline {
                 dbPath: test.db
                 timerDaemonURL: http://localhost:3000
                 EOF
-                '''
+
                 cat secrets-dev.yaml
+                '''
             }
         }
 
