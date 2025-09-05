@@ -22,15 +22,17 @@ pipeline {
                 }
                 checkout scm
 
-                def content = '''certPath: ${CERT_FILE}
-webhookSecret: ${WEBHOOK_SECRET}
+                script {
+                    def content = """certPath: ${env.CERT_FILE}
+webhookSecret: ${env.WEBHOOK_SECRET}
 appID: 1024499
 orgID: 183599010
 webServerPort: 4000
 dbPath: test.db
-timerDaemonURL: "http://localhost:3000"'''
-
-                writeFile file: 'secrets-dev.yaml', text: content
+timerDaemonURL: "http://localhost:3000"
+"""
+                    writeFile file: 'secrets-dev.yaml', text: content
+                }
 
                 sh '''
                 ls -l
