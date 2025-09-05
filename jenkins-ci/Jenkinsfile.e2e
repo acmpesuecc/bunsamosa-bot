@@ -31,7 +31,7 @@ pipeline {
 
                 webServerPort: 4000
                 dbPath: test.db
-                timerDaemonURL: http://localhost:3000
+                timerDaemonURL: "http://localhost:3000"
                 EOF
 
                 cat secrets-dev.yaml
