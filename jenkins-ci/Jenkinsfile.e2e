@@ -93,7 +93,7 @@ timerDaemonURL: "http://localhost:3000"
 
                         sleep 10
 
-                        go test jenkins-ci/e2e_test.go
+                        go test -v jenkins-ci/e2e_test.go
                         '''
 
                         script {

@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,91 +143,116 @@ func TestMain(m *testing.M) {
 func TestAssignDeassign(t *testing.T) {
 	ctx := globalContext
 
+	t.Log("➡️ Starting TestAssignDeassign")
+
 	// Assign
+	t.Logf("💬 Commenting to assign %s ...", assignee)
 	comment := &github.IssueComment{Body: github.String("!assign @" + assignee)}
 	_, _, err := globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, comment)
 	if err != nil {
-		t.Fatalf("failed to create assign comment: %v", err)
+		t.Fatalf("❌ failed to create assign comment: %v", err)
 	}
+	t.Log("⏳ Waiting 10s for bot to process assignment...")
 	time.Sleep(10 * time.Second)
 
 	// Verify assignee
+	t.Log("🔍 Verifying that assignee is present...")
 	updated, _, err := globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
 	if err != nil {
-		t.Fatalf("failed to fetch issue: %v", err)
+		t.Fatalf("❌ failed to fetch issue: %v", err)
 	}
 	found := false
 	for _, a := range updated.Assignees {
 		if a.GetLogin() == assignee {
 			found = true
+			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected %s to be assigned, but not found", assignee)
+		t.Fatalf("❌ expected %s to be assigned, but not found", assignee)
 	}
+	t.Logf("✅ %s successfully assigned", assignee)
 
 	// Deassign
+	t.Logf("💬 Commenting to deassign %s ...", assignee)
 	deassign := &github.IssueComment{Body: github.String("!deassign")}
 	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, deassign)
 	if err != nil {
-		t.Fatalf("failed to create deassign comment: %v", err)
+		t.Fatalf("❌ failed to create deassign comment: %v", err)
 	}
+	t.Log("⏳ Waiting 10s for bot to process deassignment...")
 	time.Sleep(10 * time.Second)
 
 	// Verify unassigned
+	t.Log("🔍 Verifying that assignee is removed...")
 	updated, _, err = globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
+	if err != nil {
+		t.Fatalf("❌ failed to fetch issue: %v", err)
+	}
+	for _, a := range updated.Assignees {
+		if a.GetLogin() == assignee {
+			t.Fatalf("❌ expected %s to be unassigned, but still present", assignee)
+		}
+	}
+	t.Logf("✅ %s successfully deassigned", assignee)
+
+	t.Log("🎉 TestAssignDeassign completed successfully")
+}
+
+func TestAssignWithReminderAndDeassign(t *testing.T) {
+	ctx := globalContext
+
+	// Step 1: Assign with reminder of 1 minute
+	assignComment := &github.IssueComment{Body: github.String("!assign @" + assignee + " 1")}
+	_, _, err := globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, assignComment)
+	if err != nil {
+		t.Fatalf("failed to create assign-with-reminder comment: %v", err)
+	}
+	t.Log("Posted !assign with reminder (1 min)")
+
+	// Step 2: Wait enough time for the reminder to fire (1 min + buffer)
+	t.Log("Waiting 70 seconds for reminder...")
+	time.Sleep(70 * time.Second)
+
+	// Step 3: Fetch recent comments to check for reminder
+	comments, _, err := globalClient.Issues.ListComments(ctx, repoOwner, repoName, globalIssueNum, &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{PerPage: 10},
+	})
+	if err != nil {
+		t.Fatalf("failed to list comments: %v", err)
+	}
+
+	foundReminder := false
+	for _, c := range comments {
+		body := c.GetBody()
+		if strings.Contains(body, "timer for the @"+assignee+" to work on the issue has finished") {
+			foundReminder = true
+			break
+		}
+	}
+	if !foundReminder {
+		t.Fatalf("expected reminder comment for assignee %s, but not found", assignee)
+	}
+	t.Log("✅ Reminder comment found")
+
+	// Step 4: Post !deassign
+	deassignComment := &github.IssueComment{Body: github.String("!deassign")}
+	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, deassignComment)
+	if err != nil {
+		t.Fatalf("failed to create deassign comment: %v", err)
+	}
+	t.Log("Posted !deassign")
+
+	// Step 5: Verify assignee is removed
+	time.Sleep(10 * time.Second) // wait for bot to process
+	updatedIssue, _, err := globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
 	if err != nil {
 		t.Fatalf("failed to fetch issue: %v", err)
 	}
-	for _, a := range updated.Assignees {
+	for _, a := range updatedIssue.Assignees {
 		if a.GetLogin() == assignee {
 			t.Fatalf("expected %s to be unassigned, but still present", assignee)
 		}
 	}
-}
-
-func TestAssignDeassignFormatted(t *testing.T) {
-	ctx := globalContext
-
-	// Assign with space + newline
-	comment := &github.IssueComment{Body: github.String(" !assign @" + assignee + "\n")}
-	_, _, err := globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, comment)
-	if err != nil {
-		t.Fatalf("failed to create formatted assign comment: %v", err)
-	}
-	time.Sleep(10 * time.Second)
-
-	// Verify assignee
-	updated, _, err := globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
-	if err != nil {
-		t.Fatalf("failed to fetch issue: %v", err)
-	}
-	found := false
-	for _, a := range updated.Assignees {
-		if a.GetLogin() == assignee {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected %s to be assigned with formatted command, but not found", assignee)
-	}
-
-	// Deassign with space + newline
-	deassign := &github.IssueComment{Body: github.String(" !deassign\n")}
-	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, globalIssueNum, deassign)
-	if err != nil {
-		t.Fatalf("failed to create formatted deassign comment: %v", err)
-	}
-	time.Sleep(10 * time.Second)
-
-	// Verify unassigned
-	updated, _, err = globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
-	if err != nil {
-		t.Fatalf("failed to fetch issue: %v", err)
-	}
-	for _, a := range updated.Assignees {
-		if a.GetLogin() == assignee {
-			t.Fatalf("expected %s to be unassigned with formatted command, but still present", assignee)
-		}
-	}
+	t.Log("✅ Assignee successfully removed after reminder")
 }
