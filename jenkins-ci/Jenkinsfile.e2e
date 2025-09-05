@@ -1,0 +1,107 @@
+pipeline {
+    agent any
+    tools {
+        go '1.23.2'
+    }
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 10, unit: 'MINUTES')
+    }
+
+    environment {
+        WEBHOOK_SECRET = credentials('bunsamosa-webhook-secret')
+        CERT_FILE      = credentials('bunsamosa-private-key')
+    }
+
+    stages {
+        stage('Prepare') {
+            steps {
+                // Checkout repos + setup secrets file
+                dir('saturn') {
+                    git url: 'https://github.com/acmpesuecc/saturn', branch: 'main'
+                }
+                checkout scm
+
+                script {
+                    def content = """certPath: ${env.CERT_FILE}
+webhookSecret: ${env.WEBHOOK_SECRET}
+appID: 1024499
+orgID: 183599010
+webServerPort: 4000
+dbPath: test.db
+timerDaemonURL: "http://localhost:3000"
+"""
+                    writeFile file: 'secrets-dev.yaml', text: content
+                    //TODO: secret interpolation here is iffy, do better
+                }
+            }
+        }
+
+        stage('Run & Test') {
+            failFast true
+            parallel {
+                stage('Saturn Run') {
+                    steps {
+                        dir('saturn') {
+                            sh '''
+                            #!/bin/bash
+                            fuser -k 3000/tcp || true
+                            go run . --webhook_url="http://localhost:4000/timer" &
+                            '''
+                        }
+                    }
+                }
+                stage('Bunsamosa Run') {
+                    steps {
+                        sh '''
+                        rm -rf test.db
+                        fuser -k 4000/tcp || true
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" timeout 5 go run . || true
+                        cat dev/init.sql | sqlite3 test.db
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . &
+                        '''
+                    }
+                }
+                stage('Go E2E Test') {
+                    steps {
+                        // TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
+
+                        sh '''
+                        logfile=/tmp/bore.log
+                        bore local 4000 --to jenkins.smuz.me -s acm >"$logfile" 2>&1 &
+                        bore_pid=$!
+                        while ! grep -q "listening at jenkins.smuz.me:" "$logfile"; do
+                          sleep 0.2
+                        done
+                        port=$(grep -oE 'listening at jenkins.smuz.me:[0-9]+' "$logfile" | tail -n1 | cut -d: -f2)
+                        addr="jenkins.smuz.me:$port"
+
+                        jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
+
+                        json=$(jq -n \
+                          --arg url "http://$addr/Github" \
+                          --arg secret "$WEBHOOK_SECRET" \
+                          '{content_type:"json", insecure_ssl:"0", secret:$secret, url:$url}')
+
+                        curl -L --fail \
+                          -X PATCH \
+                          -H "Accept: application/vnd.github+json" \
+                          -H "Authorization: Bearer $jwt" \
+                          https://api.github.com/app/hook/config \
+                          -d "$json"
+
+                        sleep 10
+
+                        go test -v jenkins-ci/e2e_test.go
+                        '''
+
+                        script {
+                            currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
+                            sleep(1)   // Interrupt is not blocking and does not take effect immediately.
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
