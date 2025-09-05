@@ -73,7 +73,7 @@ timerDaemonURL: "http://localhost:3000"
 
                         script {
                             currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
-                            sleep(1)   // Interrupt is not blocking and does not take effect immediately.
+                            sleep(5)   // Interrupt is not blocking and does not take effect immediately.
                         }
                     }
                 }
