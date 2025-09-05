@@ -76,7 +76,7 @@ timerDaemonURL: "http://localhost:3000"
                         addr="jenkins.smuz.me:$port"
 
                         jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
-                        curl -L \
+                        curl -L --fail \
                           -X PATCH \
                           -H "Accept: application/vnd.github+json" \
                           -H "Authorization: Bearer $jwt" \
