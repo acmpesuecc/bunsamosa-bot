@@ -32,6 +32,7 @@ dbPath: test.db
 timerDaemonURL: "http://localhost:3000"
 """
                     writeFile file: 'secrets-dev.yaml', text: content
+                    //TODO: secret interpolation here is iffy, do better
                 }
             }
         }
@@ -75,6 +76,7 @@ timerDaemonURL: "http://localhost:3000"
                         port=$(grep -oE 'listening at jenkins.smuz.me:[0-9]+' "$logfile" | tail -n1 | cut -d: -f2)
                         addr="jenkins.smuz.me:$port"
 
+                        //TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
                         jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
 
                         json=$(jq -n \
@@ -91,8 +93,7 @@ timerDaemonURL: "http://localhost:3000"
 
                         sleep 10
 
-                        curl -f http://localhost:4000/ping
-                        curl -f "http://$addr/ping"
+                        go test jenkins-ci/e2e_test.go
                         '''
 
                         script {
