@@ -76,12 +76,18 @@ timerDaemonURL: "http://localhost:3000"
                         addr="jenkins.smuz.me:$port"
 
                         jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
+
+                        json=$(jq -n \
+                          --arg url "http://$addr/Github" \
+                          --arg secret "$WEBHOOK_SECRET" \
+                          '{content_type:"json", insecure_ssl:"0", secret:$secret, url:$url}')
+
                         curl -L --fail \
                           -X PATCH \
                           -H "Accept: application/vnd.github+json" \
                           -H "Authorization: Bearer $jwt" \
                           https://api.github.com/app/hook/config \
-                          -d '{"content_type":"json","insecure_ssl":"0","secret":"********","url":"http://$addr/Github"}'
+                          -d "$json"
 
                         sleep 10
 
