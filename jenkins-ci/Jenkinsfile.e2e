@@ -64,45 +64,46 @@ timerDaemonURL: "http://localhost:3000"
                 }
                 stage('Go E2E Test') {
                     steps {
-                        // TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
+                        lock('CI-Bot-Webhook') {
+                            // TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
+                            sh '''
+                            logfile=/tmp/bore.log
+                            bore local 4000 --to jenkins.smuz.me -s acm >"$logfile" 2>&1 &
+                            bore_pid=$!
 
-                        sh '''
-                        logfile=/tmp/bore.log
-                        bore local 4000 --to jenkins.smuz.me -s acm >"$logfile" 2>&1 &
-                        bore_pid=$!
+                            while ! grep -q "listening at jenkins.smuz.me:" "$logfile"; do
+                              sleep 0.2
+                            done
+                            cat "$logfile"
 
-                        while ! grep -q "listening at jenkins.smuz.me:" "$logfile"; do
-                          sleep 0.2
-                        done
-                        cat "$logfile"
+                            port=$(grep -oE 'listening at jenkins.smuz.me:[0-9]+' "$logfile" | tail -n1 | cut -d: -f2)
+                            if [ -z "$port" ]; then
+                              echo "❌ Failed to detect tunnel port from bore logs" >&2
+                              kill -9 $bore_pid || true
+                              exit 1
+                            fi
 
-                        port=$(grep -oE 'listening at jenkins.smuz.me:[0-9]+' "$logfile" | tail -n1 | cut -d: -f2)
-                        if [ -z "$port" ]; then
-                          echo "❌ Failed to detect tunnel port from bore logs" >&2
-                          kill -9 $bore_pid || true
-                          exit 1
-                        fi
+                            addr="jenkins.smuz.me:$port"
 
-                        addr="jenkins.smuz.me:$port"
+                            jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
 
-                        jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
+                            json=$(jq -n \
+                              --arg url "http://$addr/Github" \
+                              --arg secret "$WEBHOOK_SECRET" \
+                              '{content_type:"json", insecure_ssl:"0", secret:$secret, url:$url}')
 
-                        json=$(jq -n \
-                          --arg url "http://$addr/Github" \
-                          --arg secret "$WEBHOOK_SECRET" \
-                          '{content_type:"json", insecure_ssl:"0", secret:$secret, url:$url}')
+                            curl -L --fail \
+                              -X PATCH \
+                              -H "Accept: application/vnd.github+json" \
+                              -H "Authorization: Bearer $jwt" \
+                              https://api.github.com/app/hook/config \
+                              -d "$json"
 
-                        curl -L --fail \
-                          -X PATCH \
-                          -H "Accept: application/vnd.github+json" \
-                          -H "Authorization: Bearer $jwt" \
-                          https://api.github.com/app/hook/config \
-                          -d "$json"
+                            sleep 10
 
-                        sleep 10
-
-                        go test -v jenkins-ci/e2e_test.go
-                        '''
+                            go test -v jenkins-ci/e2e_test.go
+                            '''
+                        }
 
                         script {
                             currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
