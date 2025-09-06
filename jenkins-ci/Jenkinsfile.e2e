@@ -15,7 +15,6 @@ pipeline {
 
 
     stages {
-        lock('Bunsamosa-E2E'){
         stage('Prepare') {
             steps {
                 // Checkout repos + setup secrets file
@@ -40,6 +39,7 @@ timerDaemonURL: "http://localhost:3000"
         }
 
         stage('Run & Test') {
+            lock('Bunsamosa-E2E') {
             failFast true
             parallel {
                 stage('Saturn Run') {
@@ -112,7 +112,7 @@ timerDaemonURL: "http://localhost:3000"
                         }
                     }
                 }
-            }
+            }}
         }
-    }}
+    }
 }
