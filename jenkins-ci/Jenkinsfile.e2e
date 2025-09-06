@@ -72,23 +72,7 @@ timerDaemonURL: "http://localhost:3000"
                         lock('CI-Bot-Webhook') {
                         // TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
                         sh '''
-                        logfile=/tmp/bore.log
-                        bore local 4000 --to jenkins.smuz.me -s acm >"$logfile" 2>&1 &
-                        bore_pid=$!
-
-                        while ! grep -q "listening at jenkins.smuz.me:" "$logfile"; do
-                          sleep 0.2
-                        done
-                        cat "$logfile"
-
-                        port=$(grep -oE 'listening at jenkins.smuz.me:[0-9]+' "$logfile" | tail -n1 | cut -d: -f2)
-                        if [ -z "$port" ]; then
-                          echo "❌ Failed to detect tunnel port from bore logs" >&2
-                          kill -9 $bore_pid || true
-                          exit 1
-                        fi
-
-                        addr="jenkins.smuz.me:$port"
+                        addr="jenkins.smuz.me:4000"
 
                         jwt=$(jenkins-ci/gen_ghapp_jwt.sh Iv23li5W7worZpPl311Y $CERT_FILE)
 
