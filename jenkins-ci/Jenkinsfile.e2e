@@ -13,8 +13,9 @@ pipeline {
         CERT_FILE      = credentials('bunsamosa-private-key')
     }
 
-    lock('Bunsamosa-E2E'){
+
     stages {
+        lock('Bunsamosa-E2E'){
         stage('Prepare') {
             steps {
                 // Checkout repos + setup secrets file
