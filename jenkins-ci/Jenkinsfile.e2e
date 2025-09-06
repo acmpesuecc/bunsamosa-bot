@@ -5,6 +5,7 @@ pipeline {
     }
     options {
         disableConcurrentBuilds()
+        lock 'BSB-E2E'
         timeout(time: 10, unit: 'MINUTES')
     }
 
@@ -43,33 +44,28 @@ timerDaemonURL: "http://localhost:3000"
             parallel {
                 stage('Saturn Run') {
                     steps {
-                        lock('port3000') {
-                            dir('saturn') {
-                                sh '''
-                                #!/bin/bash
-                                fuser -k 3000/tcp || true
-                                go run . --webhook_url="http://localhost:4000/timer" &
-                                '''
-                            }
+                        dir('saturn') {
+                            sh '''
+                            #!/bin/bash
+                            fuser -k 3000/tcp || true
+                            go run . --webhook_url="http://localhost:4000/timer" &
+                            '''
                         }
                     }
                 }
                 stage('Bunsamosa Run') {
                     steps {
-                        lock('port4000') {
-                            sh '''
-                            rm -rf test.db
-                            fuser -k 4000/tcp || true
-                            BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" timeout 5 go run . || true
-                            cat dev/init.sql | sqlite3 test.db
-                            BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . &
-                            '''
-                        }
+                        sh '''
+                        rm -rf test.db
+                        fuser -k 4000/tcp || true
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" timeout 5 go run . || true
+                        cat dev/init.sql | sqlite3 test.db
+                        BUNSAMOSA_DEV_MODE=1 JSON_LOG_DIR="logs" go run . &
+                        '''
                     }
                 }
                 stage('Go E2E Test') {
                     steps {
-                        lock('CI-Bot-Webhook') {
                         // TODO: THIS EXPOSES JWT SECRET IN CI LOGS, FIND A BETTER WAY TO HANDLE SECRETS LIKE THIS
                         sh '''
                         addr="jenkins.smuz.me:4000"
@@ -92,7 +88,6 @@ timerDaemonURL: "http://localhost:3000"
 
                         go test -v jenkins-ci/e2e_test.go
                         '''
-                        }
 
                         script {
                             currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
