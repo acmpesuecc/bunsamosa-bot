@@ -242,8 +242,30 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// --- Tests ---
+func getSaturnRemaining(t *testing.T, assignee string) string {
+	t.Helper()
 
+	saturnURL := "http://localhost:3000/remaining"
+	payload := fmt.Sprintf(`{"event_id":"@%s"}`, assignee)
+
+	resp, err := http.Post(saturnURL, "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("❌ failed to query Saturn: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var saturnResp struct {
+		EventID       string `json:"event_id"`
+		TimeRemaining string `json:"time_remaining"`
+		Message       string `json:"message"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&saturnResp); err != nil {
+		t.Fatalf("❌ failed to decode Saturn response: %v", err)
+	}
+	return saturnResp.TimeRemaining
+}
+
+// --- Tests ---
 func TestAssignDeassign(t *testing.T) {
 	ctx := globalContext
 
@@ -260,7 +282,7 @@ func TestAssignDeassign(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	// Verify assignee
-	t.Log("🔍 Verifying that assignee is present...")
+	//t.Log("🔍 Verifying that assignee is present...")
 	updated, _, err := globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
 	if err != nil {
 		t.Fatalf("❌ failed to fetch issue: %v", err)
@@ -277,6 +299,18 @@ func TestAssignDeassign(t *testing.T) {
 	}
 	t.Logf("✅ %s successfully assigned", assignee)
 
+	// Verify Saturn timer exists
+	//t.Log("🔍 Checking Saturn timer created...")
+	timeRemaining := getSaturnRemaining(t, assignee)
+	if timeRemaining == "" {
+		t.Fatalf("❌ expected Saturn to have timer for %s, but got none", assignee)
+	}
+	if d, err := time.ParseDuration(timeRemaining); err != nil {
+		t.Fatalf("❌ invalid duration format from Saturn: %v", timeRemaining)
+	} else {
+		t.Logf("✅ Saturn timer running: %s remaining (~45m)", d)
+	}
+
 	// Deassign
 	t.Logf("💬 Commenting to deassign %s ...", assignee)
 	deassign := &github.IssueComment{Body: github.String("!deassign")}
@@ -288,7 +322,7 @@ func TestAssignDeassign(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	// Verify unassigned
-	t.Log("🔍 Verifying that assignee is removed...")
+	//t.Log("🔍 Verifying that assignee is removed...")
 	updated, _, err = globalClient.Issues.Get(ctx, repoOwner, repoName, globalIssueNum)
 	if err != nil {
 		t.Fatalf("❌ failed to fetch issue: %v", err)
@@ -299,6 +333,14 @@ func TestAssignDeassign(t *testing.T) {
 		}
 	}
 	t.Logf("✅ %s successfully deassigned", assignee)
+
+	// Verify Saturn timer removed
+	//t.Log("🔍 Checking Saturn timer removed...")
+	timeRemaining = getSaturnRemaining(t, assignee)
+	if timeRemaining != "" {
+		t.Fatalf("❌ expected no timer after deassign, but got %s", timeRemaining)
+	}
+	t.Log("✅ Saturn timer removed after deassign")
 
 	t.Log("🎉 TestAssignDeassign completed successfully")
 }
