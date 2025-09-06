@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -37,19 +38,19 @@ var (
 
 // --- Auth helpers ---
 
-func generateJWT(t *testing.T) string {
+func generateJWT() string {
 	keyPath := os.Getenv("CERT_FILE")
 	privKeyBytes, err := os.ReadFile(keyPath)
 	if err != nil {
-		t.Fatalf("failed to read private key: %v", err)
+		log.Fatalf("❌ failed to read private key: %v", err)
 	}
 	block, _ := pem.Decode(privKeyBytes)
 	if block == nil {
-		t.Fatal("failed to parse PEM block containing private key")
+		log.Fatalf("❌ failed to parse PEM block containing private key")
 	}
 	privKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		t.Fatalf("failed to parse RSA private key: %v", err)
+		log.Fatalf("❌ failed to parse RSA private key: %v", err)
 	}
 
 	now := time.Now()
@@ -62,19 +63,19 @@ func generateJWT(t *testing.T) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	signed, err := token.SignedString(privKey)
 	if err != nil {
-		t.Fatalf("failed to sign JWT: %v", err)
+		log.Fatalf("❌ failed to sign JWT: %v", err)
 	}
 	return signed
 }
 
-func getInstallationToken(ctx context.Context, t *testing.T, jwt string) string {
+func getInstallationToken(ctx context.Context, jwt string) string {
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: jwt})
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
 	token, _, err := client.Apps.CreateInstallationToken(ctx, installationID, nil)
 	if err != nil {
-		t.Fatalf("failed to create installation token: %v", err)
+		log.Fatalf("❌ failed to create installation token: %v", err)
 	}
 	return token.GetToken()
 }
@@ -103,9 +104,9 @@ func getBountyForUser(t *testing.T, dbPath, handle string) int {
 
 // --- Setup / Teardown ---
 
-func setupGHClientAndToken(t *testing.T) (*github.Client, string) {
-	_jwt := generateJWT(t)
-	token := getInstallationToken(globalContext, t, _jwt)
+func setupGHClientAndToken() (*github.Client, string) {
+	_jwt := generateJWT()
+	token := getInstallationToken(globalContext, _jwt)
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(globalContext, ts)
 	client := github.NewClient(tc)
@@ -113,7 +114,7 @@ func setupGHClientAndToken(t *testing.T) (*github.Client, string) {
 	return client, token
 }
 
-func setupIssue(t *testing.T, client *github.Client) int {
+func setupIssue(client *github.Client) int {
 	// Create issue
 	issueReq := &github.IssueRequest{
 		Title: github.String("CI-Issue-pending"),
@@ -121,10 +122,10 @@ func setupIssue(t *testing.T, client *github.Client) int {
 	}
 	issue, _, err := client.Issues.Create(globalContext, repoOwner, repoName, issueReq)
 	if err != nil {
-		t.Fatalf("failed to create issue: %v", err)
+		log.Fatalf("❌ failed to create issue: %v", err)
 	}
 	issueNumber := issue.GetNumber()
-	t.Logf("Created issue #%d", issueNumber)
+	log.Printf("✅ Created issue #%d", issueNumber)
 
 	// Update title to actual number
 	updateReq := &github.IssueRequest{
@@ -132,8 +133,9 @@ func setupIssue(t *testing.T, client *github.Client) int {
 	}
 	_, _, err = client.Issues.Edit(globalContext, repoOwner, repoName, issueNumber, updateReq)
 	if err != nil {
-		t.Fatalf("failed to update issue title: %v", err)
+		log.Fatalf("❌ failed to update issue title: %v", err)
 	}
+	log.Printf("ℹ️ Renamed issue #%d", issueNumber)
 
 	// Give bot time
 	time.Sleep(5 * time.Second)
@@ -141,19 +143,18 @@ func setupIssue(t *testing.T, client *github.Client) int {
 	return issueNumber
 }
 
-func teardownIssue(t *testing.T, client *github.Client, issueNumber int) {
+func teardownIssue(client *github.Client, issueNumber int) {
 	state := "closed"
 	_, _, err := client.Issues.Edit(globalContext, repoOwner, repoName, issueNumber, &github.IssueRequest{
 		State: &state,
 	})
 	if err != nil {
-		t.Logf("⚠️ failed to close issue #%d: %v", issueNumber, err)
-	} else {
-		t.Logf("Closed issue #%d", issueNumber)
+		log.Fatalf("❌ failed to close issue #%d: %v", issueNumber, err)
 	}
+	log.Printf("✅ Closed issue #%d", issueNumber)
 }
 
-func setupPR(t *testing.T, client *github.Client, token string) (int, string) {
+func setupPR(client *github.Client, token string) (int, string) {
 	ctx := globalContext
 
 	branchName := fmt.Sprintf("ci-test-branch-%d", time.Now().Unix())
@@ -163,7 +164,7 @@ func setupPR(t *testing.T, client *github.Client, token string) (int, string) {
 	repoURL := fmt.Sprintf("https://x-access-token:%s@github.com/%s/%s.git", token, repoOwner, repoName)
 
 	// --- Step 1: Create new branch with dummy file ---
-	t.Log("➡️ Creating test branch and committing dummy file")
+	log.Printf("➡️ Creating test branch and committing dummy file")
 	cmds := [][]string{
 		{"git", "clone", "https://github.com/foobaruwu/CI-Repo-Bunsamosa.git"},
 		{"cd", "CI-Repo-Bunsamosa"},
@@ -180,58 +181,53 @@ func setupPR(t *testing.T, client *github.Client, token string) (int, string) {
 		cmd := exec.Command(c[0], c[1:]...)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		if err := cmd.Run(); err != nil {
-			t.Fatalf("failed to run %v: %v", c, err)
+			log.Fatalf("❌ failed to run %v: %v", c, err)
 		}
 	}
 
 	// --- Step 2: Create PR ---
-	t.Log("➡️ Opening PR")
+	log.Printf("➡️ Opening PR")
 	newPR := &github.NewPullRequest{
 		Title: github.String(prTitle),
 		Head:  github.String(branchName),
 		Base:  github.String("main"),
 		Body:  github.String(prBody),
 	}
-	pr, _, err := globalClient.PullRequests.Create(ctx, repoOwner, repoName, newPR)
+	pr, _, err := client.PullRequests.Create(ctx, repoOwner, repoName, newPR)
 	if err != nil {
-		t.Fatalf("failed to create PR: %v", err)
+		log.Fatalf("❌ failed to create PR: %v", err)
 	}
 	prNumber := pr.GetNumber()
 	prAuthor := pr.User.GetLogin()
-	t.Logf("✅ Created PR #%d by %s", prNumber, prAuthor)
+	log.Printf("✅ Created PR #%d by %s", prNumber, prAuthor)
 
 	return prNumber, branchName
 }
 
-func teardownPR(t *testing.T, client *github.Client, prNumber int, branchName string) {
+func teardownPR(client *github.Client, prNumber int, branchName string) {
 	// Close PR
 	state := "closed"
 	_, _, err := client.PullRequests.Edit(globalContext, repoOwner, repoName, prNumber, &github.PullRequest{State: &state})
 	if err != nil {
-		t.Logf("⚠️ failed to close PR #%d: %v", prNumber, err)
-	} else {
-		t.Logf("Closed PR #%d", prNumber)
+		log.Fatalf("❌ failed to close PR #%d: %v", prNumber, err)
 	}
+	log.Printf("✅ Closed PR #%d", prNumber)
 
 	// Delete branch
 	_, err = client.Git.DeleteRef(globalContext, repoOwner, repoName, "refs/heads/"+branchName)
 	if err != nil {
-		t.Logf("⚠️ failed to delete branch %s: %v", branchName, err)
-	} else {
-		t.Logf("Deleted branch %s", branchName)
+		log.Fatalf("❌ failed to delete branch %s: %v", branchName, err)
 	}
+	log.Printf("✅ Deleted branch %s", branchName)
 }
 
 // --- Main entry for tests ---
 
 func TestMain(m *testing.M) {
-	// Setup once
-	t := &testing.T{}
-
-	client, _ := setupGHClientAndToken(t)
+	client, _ := setupGHClientAndToken()
 	globalClient = client //to be used by the unit tests
 
-	issueNum := setupIssue(t, client)
+	issueNum := setupIssue(client)
 	globalIssueNum = issueNum
 
 	//prNum, branchName := setupPR(t, client, token)
@@ -241,7 +237,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// Teardown once
-	teardownIssue(t, globalClient, globalIssueNum)
+	teardownIssue(globalClient, globalIssueNum)
 	//teardownPR(t, client, prNum, branchName)
 
 	os.Exit(code)
