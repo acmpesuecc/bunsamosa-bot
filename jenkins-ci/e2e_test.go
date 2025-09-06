@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -80,28 +83,6 @@ func getInstallationToken(ctx context.Context, jwt string) string {
 	return token.GetToken()
 }
 
-// --- SQLite bounty check ---
-
-func getBountyForUser(t *testing.T, dbPath, handle string) int {
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		t.Fatalf("failed to open db: %v", err)
-	}
-	defer db.Close()
-
-	var points int
-	query := `
-		SELECT COALESCE(SUM(bl.assigned_bounty), 0)
-		FROM bounty_loggings bl
-		JOIN contributors c ON bl.contributor_id = c.id
-		WHERE c.github_handle = ?
-	`
-	if err := db.QueryRow(query, handle).Scan(&points); err != nil {
-		t.Fatalf("failed to query bounty: %v", err)
-	}
-	return points
-}
-
 // --- Setup / Teardown ---
 
 func setupGHClientAndToken() (*github.Client, string) {
@@ -165,9 +146,26 @@ func setupPR(client *github.Client, token string) (int, string) {
 
 	// --- Step 1: Create new branch with dummy file ---
 	log.Printf("➡️ Creating test branch and committing dummy file")
+
+	repoDir := "CI-Repo-Bunsamosa"
+
+	// Step 0: cleanup if repo already exists
+	if _, err := os.Stat(repoDir); err == nil {
+		log.Printf("🧹 Removing existing repo dir: %s", repoDir)
+		if err := os.RemoveAll(repoDir); err != nil {
+			log.Fatalf("❌ failed to remove existing repo dir: %v", err)
+		}
+	}
+
+	// Step 1: clone
+	cmd := exec.Command("git", "clone", "https://github.com/foobaruwu/CI-Repo-Bunsamosa.git")
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("❌ failed to clone repo: %v", err)
+	}
+
+	// Step 2+: run all following commands inside repoDir
 	cmds := [][]string{
-		{"git", "clone", "https://github.com/foobaruwu/CI-Repo-Bunsamosa.git"},
-		{"cd", "CI-Repo-Bunsamosa"},
 		{"git", "remote", "set-url", "origin", repoURL},
 		{"git", "config", "user.email", "bot@example.com"},
 		{"git", "config", "user.name", "CI Bot"},
@@ -179,9 +177,10 @@ func setupPR(client *github.Client, token string) (int, string) {
 	}
 	for _, c := range cmds {
 		cmd := exec.Command(c[0], c[1:]...)
-		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-		if err := cmd.Run(); err != nil {
-			log.Fatalf("❌ failed to run %v: %v", c, err)
+		cmd.Dir = repoDir // 👈 run inside cloned repo
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Fatalf("❌ failed to run %v: %v\nOutput:\n%s", c, err, string(out))
 		}
 	}
 
@@ -224,21 +223,21 @@ func teardownPR(client *github.Client, prNumber int, branchName string) {
 // --- Main entry for tests ---
 
 func TestMain(m *testing.M) {
-	client, _ := setupGHClientAndToken()
+	client, token := setupGHClientAndToken()
 	globalClient = client //to be used by the unit tests
 
 	issueNum := setupIssue(client)
 	globalIssueNum = issueNum
 
-	//prNum, branchName := setupPR(t, client, token)
-	//globalPRNum = prNum
+	prNum, branchName := setupPR(client, token)
+	globalPRNum = prNum
 
 	// Run tests
 	code := m.Run()
 
 	// Teardown once
 	teardownIssue(globalClient, globalIssueNum)
-	//teardownPR(t, client, prNum, branchName)
+	teardownPR(client, prNum, branchName)
 
 	os.Exit(code)
 }
@@ -362,61 +361,111 @@ func TestAssignWithReminderAndDeassign(t *testing.T) {
 	t.Log("✅ Assignee successfully removed after reminder")
 }
 
-// --- Example PR + bounty flow test ---
+func getBountyForUserOnPR(t *testing.T, dbPath, handle string, prNumber int) int {
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer db.Close()
 
-//func TestPRBountyFlow(t *testing.T) {
-//	ctx := globalContext
-//
-//	// --- Step 3: Capture starting bounty points for PR author ---
-//	startPoints := getBountyForUser(t, dbPath, prAuthor)
-//	t.Logf("ℹ️ %s had %d bounty points before", prAuthor, startPoints)
-//
-//	// --- Step 4: Comment !bounty 50 ---
-//	t.Log("➡️ Commenting !bounty 50 on PR")
-//	comment := &github.IssueComment{Body: github.String("!bounty 50")}
-//	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, prNumber, comment)
-//	if err != nil {
-//		t.Fatalf("failed to create bounty comment: %v", err)
-//	}
-//
-//	// --- Step 5: Wait and check bot reply ---
-//	t.Log("⏳ Waiting 10s for bot to reply...")
-//	time.Sleep(10 * time.Second)
-//	comments, _, err := globalClient.Issues.ListComments(ctx, repoOwner, repoName, prNumber, &github.IssueListCommentsOptions{
-//		ListOptions: github.ListOptions{PerPage: 10},
-//	})
-//	if err != nil {
-//		t.Fatalf("failed to fetch PR comments: %v", err)
-//	}
-//
-//	found := false
-//	for _, c := range comments {
-//		if c.User.GetLogin() == botHandle && strings.Contains(c.GetBody(), "Bounty of 50 assigned") {
-//			found = true
-//			break
-//		}
-//	}
-//	if !found {
-//		t.Fatalf("❌ expected bot reply confirming bounty assignment, not found")
-//	}
-//	t.Log("✅ Bot reply confirmed")
-//
-//	// --- Step 6: Verify DB updated ---
-//	endPoints := getBountyForUser(t, dbPath, prAuthor)
-//	if endPoints <= startPoints {
-//		t.Fatalf("❌ expected bounty points to increase for %s (before=%d, after=%d)", prAuthor, startPoints, endPoints)
-//	}
-//	t.Logf("✅ Bounty persisted in DB: %s went from %d → %d", prAuthor, startPoints, endPoints)
-//
-//	// --- Step 7: Verify leaderboard matches ---
-//	resp, err := http.Get("http://localhost:4000/leaderboard_mat")
-//	if err != nil {
-//		t.Fatalf("failed to call leaderboard endpoint: %v", err)
-//	}
-//	defer resp.Body.Close()
-//	body, _ := io.ReadAll(resp.Body)
-//	if !strings.Contains(string(body), prAuthor) {
-//		t.Fatalf("❌ leaderboard does not contain %s", prAuthor)
-//	}
-//	t.Log("✅ Leaderboard shows PR author with updated bounty")
-//}
+	// Step 1: resolve internal issue.id from GitHub PR number
+	var issueID int
+	url := fmt.Sprintf("https://github.com/foobaruwu/CI-Repo-Bunsamosa/pull/%d", prNumber)
+	if err := db.QueryRow("SELECT id FROM issues WHERE url = ?", url).Scan(&issueID); err != nil {
+		t.Fatalf("failed to resolve issue.id for PR #%d: %v", prNumber, err)
+	}
+
+	// Step 2: check bounty_loggings for that contributor & issue
+	var bounty int
+	query := `
+		SELECT COALESCE(SUM(bl.assigned_bounty), 0)
+		FROM bounty_loggings bl
+		JOIN contributors c ON bl.contributor_id = c.id
+		WHERE c.github_handle = ? AND bl.issue_id = ?
+	`
+	if err := db.QueryRow(query, handle, issueID).Scan(&bounty); err != nil {
+		t.Fatalf("failed to query bounty for %s on issue %d: %v", handle, issueID, err)
+	}
+	return bounty
+}
+
+func getBountyFromLeaderboard(t *testing.T, handle string) int {
+	resp, err := http.Get("http://localhost:4000/leaderboard_mat")
+	if err != nil {
+		t.Fatalf("failed to fetch leaderboard: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var leaderboard []struct {
+		GithubHandle string
+		TotalBounty  int
+	}
+	if err := json.Unmarshal(body, &leaderboard); err != nil {
+		t.Fatalf("failed to unmarshal leaderboard: %v", err)
+	}
+
+	for _, entry := range leaderboard {
+		if entry.GithubHandle == handle {
+			return entry.TotalBounty
+		}
+	}
+	// If not found, treat as 0
+	return 0
+}
+
+func TestPRBountyFlow(t *testing.T) {
+	ctx := globalContext
+	prAuthor := botHandle
+	prNumber := globalPRNum
+
+	// --- Step 3: Capture starting bounty points for PR author ---
+	startPoints := getBountyFromLeaderboard(t, prAuthor)
+	t.Logf("ℹ️ %s had %d bounty points before", prAuthor, startPoints)
+
+	// --- Step 4: Comment !bounty 50 ---
+	t.Log("➡️ Commenting !bounty 50 on PR")
+	comment := &github.IssueComment{Body: github.String("!bounty 50")}
+	_, _, err := globalClient.Issues.CreateComment(ctx, repoOwner, repoName, prNumber, comment)
+	if err != nil {
+		t.Fatalf("failed to create bounty comment: %v", err)
+	}
+
+	// --- Step 5: Wait and check bot reply ---
+	t.Log("⏳ Waiting 20s for bot to reply...")
+	time.Sleep(20 * time.Second)
+	comments, _, err := globalClient.Issues.ListComments(ctx, repoOwner, repoName, prNumber, &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{PerPage: 10},
+	})
+	if err != nil {
+		t.Fatalf("failed to fetch PR comments: %v", err)
+	}
+
+	found := false
+	for _, c := range comments {
+		if c.User.GetLogin() == botHandle && strings.Contains(c.GetBody(), "Assigned 50 Bounty points") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("❌ expected bot reply confirming bounty assignment, not found")
+	}
+	t.Log("✅ Bot reply confirmed")
+
+	// --- Step 7: Verify DB logging ---
+	issueBounty := getBountyForUserOnPR(t, dbPath, prAuthor, prNumber)
+	if issueBounty != 50 {
+		t.Fatalf("❌ expected bounty_loggings to record 50 points for %s on PR #%d, got %d",
+			prAuthor, prNumber, issueBounty)
+	}
+	t.Logf("✅ bounty_loggings correctly recorded %d points for %s on PR #%d",
+		issueBounty, prAuthor, prNumber)
+
+	// --- Step 6: Verify leaderboard updated by +50 ---
+	endPoints := getBountyFromLeaderboard(t, prAuthor)
+	if endPoints-startPoints != 50 {
+		t.Fatalf("❌ expected bounty points to increase by 50 for %s (before=%d, after=%d)", prAuthor, startPoints, endPoints)
+	}
+	t.Logf("✅ Leaderboard shows %s went from %d → %d (+50)", prAuthor, startPoints, endPoints)
+}
