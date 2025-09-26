@@ -139,7 +139,7 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 	}
 
 	dbSuccess, err := globals.AppState.DBManager.AssignIssue(
-		parsedHook.Issue.URL,
+		parsedHook.Issue.HTMLURL,
 		contributorHandle,
 		parsedHook.Repository.Name,
 	)
@@ -272,7 +272,7 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 		Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN")).
 		Msg("Recieved an !deassign request")
 
-	dbSuccess, err := globals.AppState.DBManager.DeassignIssue(parsedHook.Issue.URL)
+	dbSuccess, err := globals.AppState.DBManager.DeassignIssue(parsedHook.Issue.HTMLURL)
 	if err != nil {
 		globals.AppState.ZeroLogger.Error().Err(err).
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE")).
@@ -283,7 +283,7 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 	if !dbSuccess {
 		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE")).
 			Str("sender", parsedHook.Sender.Login).
-			Str("issueURL", parsedHook.Issue.URL).
+			Str("issueURL", parsedHook.Issue.HTMLURL).
 			Msg("Failed to deassign issue, DB error")
 		return
 	}
@@ -400,7 +400,7 @@ func withdrawIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 	contributorHandle := parsedHook.Sender.Login
 
 	dbSuccess, err := globals.AppState.DBManager.WithdrawIssue(
-		parsedHook.Issue.URL,
+		parsedHook.Issue.HTMLURL,
 		contributorHandle,
 	)
 	if err != nil {
@@ -421,7 +421,7 @@ func withdrawIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 	if !dbSuccess {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("WITHDRAW_ISSUE")).
 			Str("sender", contributorHandle).
-			Str("issueURL", parsedHook.Issue.URL).
+			Str("issueURL", parsedHook.Issue.HTMLURL).
 			Msg("Failed to withdraw issue, DB error")
 		return
 	}
@@ -518,14 +518,14 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 	if !success {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
 			Str("sender", parsedHook.Sender.Login).
-			Str("issueURL", parsedHook.Issue.URL).
+			Str("issueURL", parsedHook.Issue.HTMLURL).
 			Msg("Failed to extend issue")
 		return
 	}
 	if parsedHook.Issue.Assignee == nil {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
 			Str("sender", parsedHook.Sender.Login).
-			Str("issueURL", parsedHook.Issue.URL).
+			Str("issueURL", parsedHook.Issue.HTMLURL).
 			Msg("No Assignee for issue extend request")
 		return
 	}
