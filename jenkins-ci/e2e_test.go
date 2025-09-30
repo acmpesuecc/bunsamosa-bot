@@ -29,7 +29,7 @@ const (
 	repoName       = "CI-Repo-Bunsamosa"
 	assignee       = "DedLad"
 	botHandle      = "ci-bunsamosabot[bot]"
-	dbPath         = "test.db"
+	dbPath         = "../test.db"
 )
 
 var (
