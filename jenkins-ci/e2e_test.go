@@ -599,14 +599,14 @@ func TestPRMultipleBountyAssignments(t *testing.T) {
 
 	// --- Step 7: Verify leaderboard reflects only the latest bounty (150, not 100+200+150) ---
 	endPoints := getBountyFromLeaderboard(t, prAuthor)
-	expectedIncrease := 150 // Only the last assignment should count
+	expectedIncrease := 100 // Only the last assignment should count, and since we started with 50, it must be 150 - 50
 	actualIncrease := endPoints - startPoints
 
 	if actualIncrease != expectedIncrease {
 		t.Fatalf("❌ expected bounty increase of %d for %s (only latest should count), but got %d (before=%d, after=%d)",
 			expectedIncrease, prAuthor, actualIncrease, startPoints, endPoints)
 	}
-	t.Logf("✅ Leaderboard correctly shows %s went from %d → %d (+%d, latest bounty only)",
+	t.Logf("✅ Leaderboard correctly shows %s went from %d → %d (+%d, (overwritten by) latest bounty only)",
 		prAuthor, startPoints, endPoints, expectedIncrease)
 
 	t.Log("🎉 TestPRMultipleBountyAssignments completed successfully - only latest bounty counted!")
