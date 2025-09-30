@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/go-github/v55/github"
+	"github.com/google/go-github/v74/github"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/oauth2"
 )
@@ -420,10 +420,14 @@ func getBountyForUserOnPR(t *testing.T, dbPath, handle string, prNumber int) int
 	// Step 2: check bounty_loggings for that contributor & issue
 	var bounty int
 	query := `
-		SELECT COALESCE(SUM(bl.assigned_bounty), 0)
-		FROM bounty_loggings bl
-		JOIN contributors c ON bl.contributor_id = c.id
-		WHERE c.github_handle = ? AND bl.issue_id = ?
+	SELECT COALESCE(
+				(SELECT bl1.assigned_bounty
+				 FROM bounty_loggings bl1
+				 JOIN contributors c ON bl1.contributor_id = c.id
+				 LEFT JOIN bounty_loggings bl2 ON bl1.contributor_id = bl2.contributor_id
+					 AND bl1.issue_id = bl2.issue_id AND bl2.id > bl1.id
+				 WHERE c.github_handle = ? AND bl1.issue_id = ? AND bl2.id IS NULL),
+				0)
 	`
 	if err := db.QueryRow(query, handle, issueID).Scan(&bounty); err != nil {
 		t.Fatalf("failed to query bounty for %s on issue %d: %v", handle, issueID, err)
@@ -510,4 +514,100 @@ func TestPRBountyFlow(t *testing.T) {
 		t.Fatalf("❌ expected bounty points to increase by 50 for %s (before=%d, after=%d)", prAuthor, startPoints, endPoints)
 	}
 	t.Logf("✅ Leaderboard shows %s went from %d → %d (+50)", prAuthor, startPoints, endPoints)
+}
+
+func TestPRMultipleBountyAssignments(t *testing.T) {
+	ctx := globalContext
+	prAuthor := botHandle
+	prNumber := globalPRNum
+
+	t.Log("➡️ Starting TestPRMultipleBountyAssignments")
+
+	// --- Step 1: Capture starting bounty points for PR author ---
+	startPoints := getBountyFromLeaderboard(t, prAuthor)
+	t.Logf("ℹ️ %s had %d bounty points before multiple assignments", prAuthor, startPoints)
+
+	// --- Step 2: First bounty assignment (100 points) ---
+	t.Log("💬 Commenting !bounty 100 on PR (first assignment)")
+	comment1 := &github.IssueComment{Body: github.String("!bounty 100")}
+	_, _, err := globalClient.Issues.CreateComment(ctx, repoOwner, repoName, prNumber, comment1)
+	if err != nil {
+		t.Fatalf("❌ failed to create first bounty comment: %v", err)
+	}
+
+	t.Log("⏳ Waiting 15s for bot to process first assignment...")
+	time.Sleep(15 * time.Second)
+
+	// --- Step 3: Second bounty assignment (200 points) ---
+	t.Log("💬 Commenting !bounty 200 on PR (second assignment)")
+	comment2 := &github.IssueComment{Body: github.String("!bounty 200")}
+	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, prNumber, comment2)
+	if err != nil {
+		t.Fatalf("❌ failed to create second bounty comment: %v", err)
+	}
+
+	t.Log("⏳ Waiting 15s for bot to process second assignment...")
+	time.Sleep(15 * time.Second)
+
+	// --- Step 4: Third bounty assignment (150 points) ---
+	t.Log("💬 Commenting !bounty 150 on PR (third assignment)")
+	comment3 := &github.IssueComment{Body: github.String("!bounty 150")}
+	_, _, err = globalClient.Issues.CreateComment(ctx, repoOwner, repoName, prNumber, comment3)
+	if err != nil {
+		t.Fatalf("❌ failed to create third bounty comment: %v", err)
+	}
+
+	t.Log("⏳ Waiting 20s for bot to process third assignment...")
+	time.Sleep(20 * time.Second)
+
+	// --- Step 5: Verify bot replies were posted for each assignment ---
+	comments, _, err := globalClient.Issues.ListComments(ctx, repoOwner, repoName, prNumber, &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{PerPage: 20},
+	})
+	if err != nil {
+		t.Fatalf("❌ failed to fetch PR comments: %v", err)
+	}
+
+	botRepliesFound := 0
+	expectedReplies := []string{"Assigned 100 Bounty points", "Assigned 200 Bounty points", "Assigned 150 Bounty points"}
+
+	for _, c := range comments {
+		if c.User.GetLogin() == botHandle {
+			body := c.GetBody()
+			for _, expected := range expectedReplies {
+				if strings.Contains(body, expected) {
+					botRepliesFound++
+					break
+				}
+			}
+		}
+	}
+
+	if botRepliesFound != 3 {
+		t.Fatalf("❌ expected 3 bot replies for bounty assignments, found %d", botRepliesFound)
+	}
+	t.Log("✅ All 3 bot replies confirmed bounty assignments")
+
+	// --- Step 6: Verify database shows only latest bounty per issue ---
+	latestBountyInDB := getBountyForUserOnPR(t, dbPath, prAuthor, prNumber)
+	if latestBountyInDB != 150 {
+		t.Fatalf("❌ expected database to show latest bounty of 150 for %s on PR #%d, got %d",
+			prAuthor, prNumber, latestBountyInDB)
+	}
+	t.Logf("✅ Database correctly shows latest bounty of %d points for %s on PR #%d",
+		latestBountyInDB, prAuthor, prNumber)
+
+	// --- Step 7: Verify leaderboard reflects only the latest bounty (150, not 100+200+150) ---
+	endPoints := getBountyFromLeaderboard(t, prAuthor)
+	expectedIncrease := 150 // Only the last assignment should count
+	actualIncrease := endPoints - startPoints
+
+	if actualIncrease != expectedIncrease {
+		t.Fatalf("❌ expected bounty increase of %d for %s (only latest should count), but got %d (before=%d, after=%d)",
+			expectedIncrease, prAuthor, actualIncrease, startPoints, endPoints)
+	}
+	t.Logf("✅ Leaderboard correctly shows %s went from %d → %d (+%d, latest bounty only)",
+		prAuthor, startPoints, endPoints, expectedIncrease)
+
+	t.Log("🎉 TestPRMultipleBountyAssignments completed successfully - only latest bounty counted!")
 }
