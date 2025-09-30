@@ -86,12 +86,12 @@ type ContributorIssue struct {
 // Append-only
 type BountyLogging struct {
 	ID             int `gorm:"primaryKey;not null;autoIncrement;<-:create"`
-	AssignedBounty int `gorm:"default:0;<-:create;index:idx_bounty_contrib,priority:2"`
+	AssignedBounty int `gorm:"default:0;<-:create;index:idx_bounty,priority:3"`
 	CreatedAt      time.Time
 
 	// Foreign Key's part of BountyLogging
-	ContributorID int         `gorm:"<-:create;index:idx_bounty_contrib,priority:1"`
-	IssueID       int         `gorm:"<-:create"`
+	ContributorID int         `gorm:"<-:create;index:idx_bounty,priority:1"`
+	IssueID       int         `gorm:"<-:create;index:idx_bounty,priority:2"`
 	Contributor   Contributor `gorm:"foreignKey:ContributorID"`
 	Issue         Issue       `gorm:"foreignKey:IssueID"`
 }
