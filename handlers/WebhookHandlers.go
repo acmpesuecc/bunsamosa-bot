@@ -594,6 +594,14 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 			Int("statusCode", response.StatusCode).
 			Str("message", extendEventResponse.Message).
 			Msg("POST /extend recieved")
+		if response.StatusCode == http.StatusExpectationFailed {
+			globals.AppState.ZeroLogger.Error().
+				Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
+				Str("assignee", parsedHook.Issue.Assignee.Login).
+				Msg("Timer expired for assignee, deassigning and assigning")
+			deassignIssue(parsedHook)
+			assignIssue(extendToAssign(commentCommand, parsedHook.Issue.Assignee.Login), parsedHook)
+		}
 	} else {
 		globals.AppState.ZeroLogger.Info().
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
