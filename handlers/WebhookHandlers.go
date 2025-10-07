@@ -225,14 +225,14 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Str("contributor", contributorHandle).
 			Msg("Failed to send /register request to TimerDaemon")
-		rollbackAssignmentHandler(parsedHook, contributorHandle, "Failed to assign issue. Timer service is unavailable. Please try again later.")
+		rollbackAssignmentHandler(parsedHook, contributorHandle, "Failed to assign issue. Failed to send timer for the contributor. Contact @bwaklog @anirudhsudhir")
 		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-		rollbackAssignmentHandler(parsedHook, contributorHandle, "Failed to assign issue. Failed to allot a timer for the contributor")
+		rollbackAssignmentHandler(parsedHook, contributorHandle, "Failed to assign issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir")
 		return
 	}
 
@@ -241,7 +241,7 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 			Str("contributor", contributorHandle).
 			Int("statusCode", response.StatusCode).
 			Msg("POST /register recieved")
-		errorMsg := fmt.Sprintf("Failed to assign issue. Timer service returned error (status: %d). Please try again later.", response.StatusCode)
+		errorMsg := fmt.Sprintf("Failed to assign issue. Failed to allot a timer for the contributor (%d). Contact @bwaklog @anirudhsudhir", response.StatusCode)
 		rollbackAssignmentHandler(parsedHook, contributorHandle, errorMsg)
 	} else {
 		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
