@@ -348,7 +348,7 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
 
-		response := "Failed to deassign issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
+		response := "Deassigned issue. Failed to delete timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -594,7 +594,7 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 			Int("statusCode", response.StatusCode).
 			Str("message", extendEventResponse.Message).
 			Msg("POST /extend recieved")
-		if response.StatusCode == http.StatusExpectationFailed {
+		if response.StatusCode == http.StatusFailedDependency {
 			globals.AppState.ZeroLogger.Error().
 				Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
 				Str("assignee", parsedHook.Issue.Assignee.Login).
