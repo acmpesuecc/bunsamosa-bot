@@ -464,7 +464,7 @@ func withdrawIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("WITHDRAW_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
 
-		response := "Failed to withdraw issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
+		response := "Issue withdrawn. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
