@@ -940,7 +940,7 @@ func manualAssignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 		int(parsedHook.Issue.Number),
 		&comment,
 	)
-	if err != nil {
+	if commentErr != nil {
 		globals.AppState.ZeroLogger.Error().Err(commentErr).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
 			Msg("Failed to comment on issue")
 		return
@@ -1074,7 +1074,7 @@ func manualDeassignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 		int(parsedHook.Issue.Number),
 		&comment,
 	)
-	if err != nil {
+	if commentErr != nil {
 		globals.AppState.ZeroLogger.Error().Err(commentErr).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
 			Msg("Failed to comment on issue")
 		return
