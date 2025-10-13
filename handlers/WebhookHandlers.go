@@ -225,13 +225,13 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Str("contributor", contributorHandle).
 			Msg("Failed to send /register request to TimerDaemon")
-		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-
+	}
+	if err != nil || response == nil {
 		response := "Assigned issue. Failed to allot a timer for the contributor @" + parsedHook.Sender.Login
 		comment := github.IssueComment{Body: &response}
 
@@ -340,14 +340,14 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE")).
 			Str("assignee", parsedHook.Issue.Assignee.Login).
 			Msg("Failed to send /cancel request to TimerDaemon")
-		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-
+	}
+	if err != nil || response == nil {
 		response := "Deassigned issue. Failed to delete timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
@@ -548,14 +548,14 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
 			Str("assignee", currentContributorHandle).
 			Msg("Failed to send /extend request to TimerDaemon")
-		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-
+	}
+	if response == nil || err != nil {
 		response := "Failed to extend issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
@@ -886,13 +886,13 @@ func manualAssignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Str("contributor", parsedHook.Assignee.Login).
 			Msg("Failed to send /register request to TimerDaemon")
-		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-
+	}
+	if response == nil || err != nil {
 		timerErrorMsg := "Failed to allot a timer for the contributor @" + parsedHook.Assignee.Login
 		comment := github.IssueComment{Body: &timerErrorMsg}
 
@@ -928,6 +928,22 @@ func manualAssignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 			Str("contributor", parsedHook.Assignee.Login).
 			Int("statusCode", response.StatusCode).
 			Msg("POST /register recieved")
+	}
+
+	ackComment := fmt.Sprintf("User %s assigned by @%s", parsedHook.Assignee.Login, parsedHook.Sender.Login)
+	comment := github.IssueComment{Body: &ackComment}
+
+	_, _, commentErr := globals.AppState.RuntimeClient.Issues.CreateComment(
+		context.TODO(),
+		parsedHook.Repository.Owner.Login,
+		parsedHook.Repository.Name,
+		int(parsedHook.Issue.Number),
+		&comment,
+	)
+	if err != nil {
+		globals.AppState.ZeroLogger.Error().Err(commentErr).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
+			Msg("Failed to comment on issue")
+		return
 	}
 }
 
@@ -989,14 +1005,14 @@ func manualDeassignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Str("user", parsedHook.Assignee.Login).
 			Msg("Failed to send /cancel request to TimerDaemon")
-		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().
 			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-
+	}
+	if response == nil || err != nil {
 		errorMessage := "Deassigned issue. Failed to delete timer for the contributor @" + parsedHook.Assignee.Login + ". Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &errorMessage}
 
@@ -1046,6 +1062,22 @@ func manualDeassignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 			Int("statusCode", response.StatusCode).
 			Str("message", cancelResponse.Message).
 			Msg("POST /cancel received")
+	}
+
+	ackComment := fmt.Sprintf("User %s deassigned by @%s", parsedHook.Assignee.Login, parsedHook.Sender.Login)
+	comment := github.IssueComment{Body: &ackComment}
+
+	_, _, commentErr := globals.AppState.RuntimeClient.Issues.CreateComment(
+		context.TODO(),
+		parsedHook.Repository.Owner.Login,
+		parsedHook.Repository.Name,
+		int(parsedHook.Issue.Number),
+		&comment,
+	)
+	if err != nil {
+		globals.AppState.ZeroLogger.Error().Err(commentErr).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
+			Msg("Failed to comment on issue")
+		return
 	}
 }
 
