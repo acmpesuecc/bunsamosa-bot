@@ -141,3 +141,7 @@ func isPullRequest(url string) bool {
 	}
 
 }
+
+func isBotAction(username string) bool {
+	return strings.Contains(username, "[bot]")
+}
