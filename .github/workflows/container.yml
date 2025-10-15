@@ -28,9 +28,10 @@ jobs:
       - name: Push to GHCR.io
         id: push-image
         uses: redhat-actions/push-to-registry@v2
-        tags: ${{ steps.build-image.outputs.tags }}
-        registry: ghcr.io/${{ github.repository_owner }}
-        user: ${{ github.actor }}
-        password: ${{ github.token }}
-        extra-args: |
-          --disable-content-trust
+        with:
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: ghcr.io/${{ github.repository_owner }}
+          user: ${{ github.actor }}
+          password: ${{ github.token }}
+          extra-args: |
+            --disable-content-trust
