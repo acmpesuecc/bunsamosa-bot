@@ -1,0 +1,36 @@
+name: Build and containerise bunsamosa-bot
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        id: checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Build Container
+        id: build-image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: bunsamosa-bot
+          tags: latest ${{ github.sha }} ${{ github.ref_name }}
+          containerfiles: |
+            ./Containerfile
+
+      - name: Push to GHCR.io
+        id: push-image
+        uses: redhat-actions/push-to-registry@v2
+        tags: ${{ steps.build-image.outputs.tags }}
+        registry: ghcr.io/${{ github.repository_owner }}
+        user: ${{ github.actor }}
+        password: ${{ github.token }}
+        extra-args: |
+          --disable-content-trust
