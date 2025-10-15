@@ -42,6 +42,9 @@ type App struct {
 	ZeroLogger    *zerolog.Logger
 
 	TimerDaemonURL string
+
+	MentionMaintainerLead string
+	MentionTechLead       string
 }
 
 var AppState App
@@ -82,6 +85,9 @@ func (a *App) ParseFromYAML(path string) {
 
 	a.DBPath = yaml_output["dbPath"]
 	a.TimerDaemonURL = yaml_output["timerDaemonURL"]
+
+	a.MentionMaintainerLead = yaml_output["maintainer-leads"]
+	a.MentionTechLead = yaml_output["tech-leads"]
 	yamlInitLogger.Info().Msg("YAML parsed successfully")
 }
 
