@@ -2,19 +2,18 @@ FROM docker.io/golang:1.25-alpine3.22 AS buildStage
 
 WORKDIR /root/bunsamosa-bot
 
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
 COPY database/ ./database
 COPY globals/ ./globals
 COPY handlers/ ./handlers
 COPY main.go ./
-COPY go.mod ./
-COPY go.sum ./
 
-RUN go build -o bunsamosa-bot
+RUN CGO_ENABLED=1 go build -trimpath -ldflags='-s -w' -o bunsamosa-bot
 
-FROM docker.io/alpine:3.20
+FROM docker.io/alpine:3.22
 
-
-USER root
 RUN mkdir -p /root/bunsamosa-bot/logs
 WORKDIR /root/bunsamosa-bot
 COPY --from=buildStage /root/bunsamosa-bot/bunsamosa-bot /opt/bunsamosa-bot
