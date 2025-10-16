@@ -32,6 +32,7 @@ jobs:
         with:
           tags: ${{ steps.build-image.outputs.tags }}
           registry: ghcr.io/${{ github.repository_owner }}
+          image: bunsamosa-bot
           username: ${{ github.actor }}
           password: ${{ github.token }}
           extra-args: |
