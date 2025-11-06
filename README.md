@@ -17,8 +17,6 @@ webhookSecret:
 appID:
 # Github Org ID
 orgID:
-# Port on which the web server listens
-webServerPort:
 # Sqlite3 DB Path
 dbPath:
 # Timer Service Webhook URL

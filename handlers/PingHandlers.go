@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -68,13 +69,13 @@ type ExtendResponse struct {
 }
 
 func PingHandler(response http.ResponseWriter, request *http.Request) {
-	globals.AppState.ZeroLogger.Info().Str("scope", "PING").Msg("Received Ping request!")
+	log.Println("[PING] Received Ping request!")
 	response.Write([]byte("Pong UwU"))
 	// response.WriteHeader(http.StatusOK)
 }
 
 func TimerHandler(response http.ResponseWriter, request *http.Request) {
-	globals.AppState.ZeroLogger.Info().Str("scope", "TIMER_DAEMON").Msg("Received Timer request!")
+	log.Println("[TIMER] Received Timer request!")
 
 	var timeoutMessage TimeoutMessage
 	err := json.NewDecoder(request.Body).Decode(&timeoutMessage)
@@ -86,7 +87,7 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	//  time is sent as string ig ?
 	// [GOD]: Yes
 
-	globals.AppState.ZeroLogger.Info().Str("scope", "TIMER_DAEMON").Msgf("Event received: %+v\n", timeoutMessage)
+	log.Printf("Event received: %+v\n", timeoutMessage)
 
 	// Now we handle as needed
 	// maybe call a deassin heree?
@@ -103,14 +104,14 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 
 	err = json.Unmarshal([]byte(timeoutMessage.Message), &emitInterface)
 	if err != nil {
-		globals.AppState.ZeroLogger.Err(err).Str("scope", "TIMER_DAEMON").Msg(" Failed to unmarshal timeoutMessage.Message")
+		log.Println("[ERROR] Failed to unmarshal timeoutMessage.Message")
 		return
 	}
 
 	commentBody := fmt.Sprintf("Hey @%s! The timer for the %s to work on the issue has finished, deassign and assign a new contributor or extend the current timer. Contact maintainer leads if inactive @DedLad @polarhive @achyuthcodes30",
 		emitInterface.Commenter, contributorHandle)
 	comment := github.IssueComment{Body: &commentBody}
-	_, _, err = globals.AppState.RuntimeClient.Issues.CreateComment(
+	_, _, err = globals.Myapp.RuntimeClient.Issues.CreateComment(
 		context.TODO(),
 		emitInterface.Owner,
 		emitInterface.Repo,
@@ -119,8 +120,8 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 	)
 
 	if err != nil {
-		globals.AppState.ZeroLogger.Err(err).Str("scope", "TIMER_DAEMON").Msgf("Could not Comment on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
+		log.Printf("[ERROR] Could not Comment on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
 	} else {
-		globals.AppState.ZeroLogger.Info().Str("scope", "TIMER_DAEMON").Msgf("Successfully Commented on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
+		log.Printf("[ISSUEHANDLER] Successfully Commented on Issue -> Repository [%s] Issue (#%d)\n", emitInterface.Repo, emitInterface.Number)
 	}
 }

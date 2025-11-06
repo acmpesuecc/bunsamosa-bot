@@ -1,13 +1,13 @@
 package database
 
 import (
-	"github.com/rs/zerolog"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type DBManager struct {
-	db         *gorm.DB
-	zeroLogger *zerolog.Logger
+	db            *gorm.DB
+	sugaredLogger *zap.SugaredLogger
 }
 
 type ContributorModel struct {
