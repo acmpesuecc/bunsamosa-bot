@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/acmpesuecc/bunsamosa-bot/globals"
+	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	ghwebhooks "github.com/go-playground/webhooks/v6/github"
 	"github.com/google/go-github/v74/github"
 	"github.com/rs/zerolog"

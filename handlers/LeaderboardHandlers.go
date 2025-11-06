@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/acmpesuecc/bunsamosa-bot/globals"
+	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	"github.com/rs/zerolog"
 )
 

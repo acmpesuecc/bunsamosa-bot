@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/acmpesuecc/bunsamosa-bot/globals"
+	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	"github.com/google/go-github/v74/github"
 )
 

@@ -16,7 +16,7 @@ import (
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 
-	"github.com/acmpesuecc/bunsamosa-bot/database"
+	"github.com/anirudhRowjee/bunsamosa-bot/database"
 )
 
 type App struct {
