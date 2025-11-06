@@ -2,14 +2,13 @@ all:
 	@echo "\nUsing go run with BUNSAMOSA_DEV_MODE=1"
 	BUNSAMOSA_DEV_MODE=1 go run .
 
-setup-schema:
+schema:
 	@echo "\nCleaning db's"
 	rm -rf test.db
-	@echo "\nInitialising schema: Using go run with BUNSAMOSA_DEV_MODE=1"
+	@echo "\nUsing go run with BUNSAMOSA_DEV_MODE=1"
 	BUNSAMOSA_DEV_MODE=1 go run .
-
-populate-db:
-	cat dev/init.sql | sqlite3 test.db
+	@echo "\nDisplaying DB Schemas"
+	echo ".schema" | sqlite3 test.db
 
 clean:
 	@echo "\nCleaning db's"

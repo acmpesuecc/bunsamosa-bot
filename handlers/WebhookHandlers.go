@@ -12,7 +12,7 @@ import (
 	// "github.com/go-playground/webhooks/v6"
 	"github.com/anirudhRowjee/bunsamosa-bot/globals"
 	ghwebhooks "github.com/go-playground/webhooks/v6/github"
-	v3 "github.com/google/go-github/v74/github"
+	v3 "github.com/google/go-github/v47/github"
 	"go.uber.org/zap"
 )
 
