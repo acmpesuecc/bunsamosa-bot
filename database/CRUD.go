@@ -150,14 +150,11 @@ func (manager *DBManager) AssignBounty(
 		manager.zeroLogger.Info().Array("scope", zerolog.Arr().Str("DBMANAGER").Str("LEADERBOARD")).
 			Msg("Beginning Recompute of ContributorBounty")
 
-		// Using self-join to get the latest id of bountyloggings
 		// recalculate total bounties of contributors
 		var contribBounties []ContributorBounty
 		result = tx.Model(&BountyLogging{}).
-			Select("bounty_loggings.contributor_id, SUM(bounty_loggings.assigned_bounty) as total_bounty").
-			Joins("LEFT JOIN bounty_loggings bl2 ON bounty_loggings.contributor_id = bl2.contributor_id AND bounty_loggings.issue_id = bl2.issue_id AND bl2.id > bounty_loggings.id").
-			Where("bl2.id IS NULL").
-			Group("bounty_loggings.contributor_id").
+			Select("contributor_id, SUM(assigned_bounty) as total_bounty").
+			Group("contributor_id").
 			Scan(&contribBounties)
 		if result.Error != nil {
 			manager.zeroLogger.Error().Array("scope", zerolog.Arr().Str("DBMANAGER").Str("LEADERBOARD")).
