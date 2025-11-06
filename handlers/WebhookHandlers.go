@@ -225,13 +225,13 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Str("contributor", contributorHandle).
 			Msg("Failed to send /register request to TimerDaemon")
+		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-	}
-	if err != nil || response == nil {
+
 		response := "Assigned issue. Failed to allot a timer for the contributor @" + parsedHook.Sender.Login
 		comment := github.IssueComment{Body: &response}
 
@@ -340,14 +340,14 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE")).
 			Str("assignee", parsedHook.Issue.Assignee.Login).
 			Msg("Failed to send /cancel request to TimerDaemon")
+		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-	}
-	if err != nil || response == nil {
+
 		response := "Deassigned issue. Failed to delete timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
@@ -548,14 +548,14 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
 			Str("assignee", currentContributorHandle).
 			Msg("Failed to send /extend request to TimerDaemon")
+		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-	}
-	if response == nil || err != nil {
+
 		response := "Failed to extend issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
@@ -736,351 +736,6 @@ func newPRCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 	// Return error
 }
 
-func manualAssignHandler(parsedHook *ghwebhooks.IssuesPayload) {
-	if parsedHook.Assignee == nil {
-		globals.AppState.ZeroLogger.Warn().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-			Msg("No assignee in webhook payload")
-		return
-	}
-	// since manual assign means that whoever is assigned on gh will be the main assignee, we need to cancel the db assignement if any
-	isAssigned, assignedIssueURL, err := globals.AppState.DBManager.CheckUserAssigned(parsedHook.Assignee.Login)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-			Str("user", parsedHook.Assignee.Login).Msg("Failed to check if user is already assigned")
-		return
-	}
-	if isAssigned {
-		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-			Str("user", parsedHook.Assignee.Login).
-			Str("assignedIssueURL", assignedIssueURL).
-			Msg("User is already assigned to another issue")
-		response := fmt.Sprintf("@%s! User %s is already assigned to another issue: %s", parsedHook.Sender.Login, parsedHook.Assignee.Login, assignedIssueURL)
-		comment := github.IssueComment{Body: &response}
-
-		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(
-			context.TODO(),
-			parsedHook.Repository.Owner.Login,
-			parsedHook.Repository.Name,
-			int(parsedHook.Issue.Number),
-			&comment,
-		)
-		if err != nil {
-			globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-				Msg("Failed to comment on issue")
-			return
-		}
-		_, _, removeErr := globals.AppState.RuntimeClient.Issues.RemoveAssignees(
-			context.TODO(),
-			parsedHook.Repository.Owner.Login,
-			parsedHook.Repository.Name,
-			int(parsedHook.Issue.Number),
-			[]string{parsedHook.Assignee.Login},
-		)
-		globals.AppState.ZeroLogger.Info().
-			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-			Str("repoOwner", parsedHook.Repository.Owner.Login).
-			Str("repoName", parsedHook.Repository.Name).
-			Int64("issueNum", parsedHook.Issue.Number).
-			Str("assignee", parsedHook.Assignee.Login).
-			Msg("Attempting to deassign assignee, already assigned")
-		if removeErr != nil {
-			globals.AppState.ZeroLogger.Error().Err(removeErr).
-				Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE").Str("GH_API")).
-				Str("assignee", parsedHook.Assignee.Login).
-				Msg("Failed to deassign issue, unable to use GitHub RuntimeClient")
-			return
-		}
-		return
-	}
-	assigned, assignErr := globals.AppState.DBManager.AssignIssue(parsedHook.Issue.HTMLURL, parsedHook.Assignee.Login, parsedHook.Repository.Name)
-	if assignErr != nil {
-		// here DB state is inconsistent, and should not be possible, but we're going to make it consistent
-		if assignErr.Error() == "issue is already assigned to someone" {
-			deassign, deassignErr := globals.AppState.DBManager.DeassignIssue(parsedHook.Issue.HTMLURL)
-			if deassignErr != nil {
-				globals.AppState.ZeroLogger.Error().Err(deassignErr).
-					Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-					Msg("Failed to deassign issue to reassign")
-				return
-			}
-			if !deassign {
-				globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-					Str("sender", parsedHook.Sender.Login).
-					Str("issueURL", parsedHook.Issue.HTMLURL).
-					Msg("Failed to deassign issue, DB error")
-				return
-			}
-			assigned, assignErr = globals.AppState.DBManager.AssignIssue(parsedHook.Issue.HTMLURL, parsedHook.Assignee.Login, parsedHook.Repository.Name)
-			if assignErr != nil {
-				globals.AppState.ZeroLogger.Error().Err(assignErr).
-					Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-					Msg("Failed to assign issue")
-				return
-			}
-			if !assigned {
-				globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-					Str("sender", parsedHook.Sender.Login).
-					Str("issueURL", parsedHook.Issue.HTMLURL).
-					Msg("Failed to assign issue, DB error")
-				return
-			}
-		} else {
-			globals.AppState.ZeroLogger.Error().Err(assignErr).
-				Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-				Msg("Failed to assign issue")
-			return
-		}
-	}
-	if !assigned {
-		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-			Str("sender", parsedHook.Sender.Login).
-			Str("issueURL", parsedHook.Issue.HTMLURL).
-			Msg("Failed to assign issue, DB error")
-		return
-	}
-
-	emitInterface := EmitMessageFormat{
-		Owner:     parsedHook.Repository.Owner.Login,
-		Commenter: parsedHook.Sender.Login,
-		Repo:      parsedHook.Repository.Name,
-		Number:    parsedHook.Issue.Number,
-	}
-
-	emitJson, err := json.Marshal(emitInterface)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
-			Str("sender", parsedHook.Assignee.Login).
-			Msg("Failed to assign timer. Failed to marshal bytes for request to TimerDaemon")
-		return
-	}
-
-	request := TimeoutEvent{
-		EventID:     "@" + parsedHook.Assignee.Login,
-		TimeoutSecs: defaultAssignment * 60, // in minutes
-		Emit:        string(emitJson),
-	}
-
-	globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
-		Any("request", request).
-		Msg("Sending request to Timer Daemon")
-
-	requestBytes, err := json.Marshal(request)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
-			Str("sender", parsedHook.Assignee.Login).
-			Msg("Failed to assign timer. Failed to marshal bytes for request to TimerDaemon")
-		return
-	}
-
-	// NOTE:
-	// Sending a POST request to the Timer Daemon to emit
-	// after "time" _seconds_
-	//
-	response, err := http.Post(
-		TimerDaemonURL+"/register",
-		"application/json",
-		bytes.NewReader(requestBytes),
-	)
-
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
-			Str("contributor", parsedHook.Assignee.Login).
-			Msg("Failed to send /register request to TimerDaemon")
-	}
-
-	if response == nil {
-		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
-			Msg("No response from the timer service")
-	}
-	if response == nil || err != nil {
-		timerErrorMsg := "Failed to allot a timer for the contributor @" + parsedHook.Assignee.Login
-		comment := github.IssueComment{Body: &timerErrorMsg}
-
-		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
-
-		if err != nil {
-			globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
-				Str("repoName", parsedHook.Repository.FullName).
-				Int64("issueNum", parsedHook.Issue.Number).
-				Str("issueTitle", parsedHook.Issue.Title).
-				Msg("Could not Comment on Issue")
-		} else {
-			globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
-				Str("repoName", parsedHook.Repository.FullName).
-				Int64("issueNum", parsedHook.Issue.Number).
-				Str("issueTitle", parsedHook.Issue.Title).
-				Msg("Successfully Commented on Issue")
-		}
-		return
-	}
-
-	if response.Body != nil {
-		defer response.Body.Close()
-	}
-
-	if response.StatusCode != http.StatusOK {
-		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
-			Str("contributor", parsedHook.Assignee.Login).
-			Int("statusCode", response.StatusCode).
-			Msg("POST /register recieved")
-	} else {
-		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
-			Str("contributor", parsedHook.Assignee.Login).
-			Int("statusCode", response.StatusCode).
-			Msg("POST /register recieved")
-	}
-
-	ackComment := fmt.Sprintf("User %s assigned by @%s", parsedHook.Assignee.Login, parsedHook.Sender.Login)
-	comment := github.IssueComment{Body: &ackComment}
-
-	_, _, commentErr := globals.AppState.RuntimeClient.Issues.CreateComment(
-		context.TODO(),
-		parsedHook.Repository.Owner.Login,
-		parsedHook.Repository.Name,
-		int(parsedHook.Issue.Number),
-		&comment,
-	)
-	if commentErr != nil {
-		globals.AppState.ZeroLogger.Error().Err(commentErr).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("ASSIGN_ISSUE")).
-			Msg("Failed to comment on issue")
-		return
-	}
-}
-
-func manualDeassignHandler(parsedHook *ghwebhooks.IssuesPayload) {
-	if parsedHook.Assignee == nil {
-		globals.AppState.ZeroLogger.Warn().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Msg("No assignee in webhook payload for deassignment")
-		return
-	}
-
-	globals.AppState.ZeroLogger.Info().
-		Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN")).
-		Str("user", parsedHook.Assignee.Login).
-		Str("issueURL", parsedHook.Issue.HTMLURL).
-		Msg("Received manual deassign request")
-
-	dbSuccess, err := globals.AppState.DBManager.DeassignIssue(parsedHook.Issue.HTMLURL)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).
-			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Str("user", parsedHook.Assignee.Login).
-			Msg("Failed to deassign issue")
-		return
-	}
-
-	if !dbSuccess {
-		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Str("sender", parsedHook.Sender.Login).
-			Str("user", parsedHook.Assignee.Login).
-			Str("issueURL", parsedHook.Issue.HTMLURL).
-			Msg("Failed to deassign issue, DB error")
-		return
-	}
-
-	cancelRequest := CancelEvent{
-		EventID: "@" + parsedHook.Assignee.Login,
-	}
-
-	globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
-		Any("request", cancelRequest).
-		Msg("Sending cancel request to Timer Daemon")
-
-	cancelRequestBytes, err := json.Marshal(cancelRequest)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).
-			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Str("user", parsedHook.Assignee.Login).
-			Msg("Failed to cancel timer. Failed to marshal bytes for request to TimerDaemon")
-		return
-	}
-
-	response, err := http.Post(
-		TimerDaemonURL+"/cancel",
-		"application/json",
-		bytes.NewReader(cancelRequestBytes),
-	)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).
-			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
-			Str("user", parsedHook.Assignee.Login).
-			Msg("Failed to send /cancel request to TimerDaemon")
-	}
-
-	if response == nil {
-		globals.AppState.ZeroLogger.Error().
-			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
-			Msg("No response from the timer service")
-	}
-	if response == nil || err != nil {
-		errorMessage := "Deassigned issue. Failed to delete timer for the contributor @" + parsedHook.Assignee.Login + ". Contact @bwaklog @anirudhsudhir"
-		comment := github.IssueComment{Body: &errorMessage}
-
-		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
-
-		if err != nil {
-			globals.AppState.ZeroLogger.Error().Err(err).
-				Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-				Str("repoName", parsedHook.Repository.FullName).
-				Int64("issueNum", parsedHook.Issue.Number).
-				Str("issueTitle", parsedHook.Issue.Title).
-				Msg("Could not Comment on Issue")
-		} else {
-			globals.AppState.ZeroLogger.Info().
-				Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-				Str("repoName", parsedHook.Repository.FullName).
-				Int64("issueNum", parsedHook.Issue.Number).
-				Str("issueTitle", parsedHook.Issue.Title).
-				Msg("Successfully Commented on Issue")
-		}
-		return
-	}
-
-	if response.Body != nil {
-		defer response.Body.Close()
-	}
-
-	var cancelResponse CancelResponse
-	err = json.NewDecoder(response.Body).Decode(&cancelResponse)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).
-			Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Str("user", parsedHook.Assignee.Login).
-			Msg("Failed to unmarshal response bytes from Timer Daemon for POST /cancel request")
-		return
-	}
-
-	if response.StatusCode != http.StatusOK {
-		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Str("user", parsedHook.Assignee.Login).
-			Int("statusCode", response.StatusCode).
-			Str("message", cancelResponse.Message).
-			Msg("POST /cancel received")
-	} else {
-		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Str("user", parsedHook.Assignee.Login).
-			Int("statusCode", response.StatusCode).
-			Str("message", cancelResponse.Message).
-			Msg("POST /cancel received")
-	}
-
-	ackComment := fmt.Sprintf("User %s deassigned by @%s", parsedHook.Assignee.Login, parsedHook.Sender.Login)
-	comment := github.IssueComment{Body: &ackComment}
-
-	_, _, commentErr := globals.AppState.RuntimeClient.Issues.CreateComment(
-		context.TODO(),
-		parsedHook.Repository.Owner.Login,
-		parsedHook.Repository.Name,
-		int(parsedHook.Issue.Number),
-		&comment,
-	)
-	if commentErr != nil {
-		globals.AppState.ZeroLogger.Error().Err(commentErr).Array("scope", zerolog.Arr().Str("ISSUE_HANDLER").Str("DEASSIGN_ISSUE")).
-			Msg("Failed to comment on issue")
-		return
-	}
-}
-
 func WebhookHandler(response http.ResponseWriter, request *http.Request) {
 	// Creating hook parsers :
 	hookSecret := ghwebhooks.Options.Secret(globals.AppState.WebhookSecret)
@@ -1140,8 +795,7 @@ func WebhookHandler(response http.ResponseWriter, request *http.Request) {
 
 	// A new issue has been opened.
 	case ghwebhooks.IssuesPayload:
-		switch parsedHook.Action {
-		case "opened":
+		if parsedHook.Action == "opened" {
 			globals.AppState.ZeroLogger.Info().
 				Array("scope", zerolog.Arr().Str("WEBHOOK_PARSER").Str("PAYLOAD")).
 				Str("user", parsedHook.Sender.Login).
@@ -1149,45 +803,7 @@ func WebhookHandler(response http.ResponseWriter, request *http.Request) {
 				Str("repoName", parsedHook.Repository.FullName).
 				Msg("Someone Opened an Issue")
 			go newIssueHandler(&parsedHook)
-		case "assigned":
-			if isBotAction(parsedHook.Sender.Login) {
-				globals.AppState.ZeroLogger.Info().
-					Array("scope", zerolog.Arr().Str("WEBHOOK_PARSER").Str("PAYLOAD")).
-					Str("bot", parsedHook.Sender.Login).
-					Str("assignee", parsedHook.Assignee.Login).
-					Str("issue", parsedHook.Issue.HTMLURL).
-					Str("repoName", parsedHook.Repository.FullName).
-					Msg("Bot assigned an Issue")
-			} else {
-				globals.AppState.ZeroLogger.Info().
-					Array("scope", zerolog.Arr().Str("WEBHOOK_PARSER").Str("PAYLOAD")).
-					Str("assigner", parsedHook.Sender.Login).
-					Str("assignee", parsedHook.Assignee.Login).
-					Str("issue", parsedHook.Issue.HTMLURL).
-					Str("repoName", parsedHook.Repository.FullName).
-					Msg("Manual assignment of an Issue")
-				go manualAssignHandler(&parsedHook)
-			}
-		case "unassigned":
-			if isBotAction(parsedHook.Sender.Login) {
-				globals.AppState.ZeroLogger.Info().
-					Array("scope", zerolog.Arr().Str("WEBHOOK_PARSER").Str("PAYLOAD")).
-					Str("bot", parsedHook.Sender.Login).
-					Str("assignee", parsedHook.Assignee.Login).
-					Str("issue", parsedHook.Issue.HTMLURL).
-					Str("repoName", parsedHook.Repository.FullName).
-					Msg("Bot deassigned an Issue")
-			} else {
-				globals.AppState.ZeroLogger.Info().
-					Array("scope", zerolog.Arr().Str("WEBHOOK_PARSER").Str("PAYLOAD")).
-					Str("assigner", parsedHook.Sender.Login).
-					Str("assignee", parsedHook.Assignee.Login).
-					Str("issue", parsedHook.Issue.HTMLURL).
-					Str("repoName", parsedHook.Repository.FullName).
-					Msg("Manual deassignment of an Issue")
-				go manualDeassignHandler(&parsedHook)
-			}
-		default:
+		} else {
 			globals.AppState.ZeroLogger.Info().
 				Array("scope", zerolog.Arr().Str("WEBHOOK_PARSER").Str("PAYLOAD")).
 				Str("user", parsedHook.Sender.Login).
