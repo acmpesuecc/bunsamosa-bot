@@ -116,17 +116,6 @@ func parseExtend(comment string) (int, bool) {
 
 }
 
-func extendToAssign(comment string, assignee string) string {
-	comment = strings.TrimLeft(comment, " ")
-	matches := extendRegex.FindStringSubmatch(comment)
-	if len(matches) > 1 && matches[1] != "" {
-		timeStr := matches[1]
-		return "!assign @" + assignee + " " + timeStr
-	} else {
-		return "!assign @" + assignee + " 30"
-	}
-}
-
 // Function to check if a URL is a Pull Request URL
 func isPullRequest(url string) bool {
 	// Github Pull Request URLs are of the form

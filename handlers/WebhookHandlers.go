@@ -225,14 +225,32 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Str("contributor", contributorHandle).
 			Msg("Failed to send /register request to TimerDaemon")
-		rollbackAssignmentHandler(parsedHook, contributorHandle, "Failed to assign issue. Failed to send timer for the contributor. Contact @bwaklog @anirudhsudhir")
 		return
 	}
 
 	if response == nil {
 		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
-		rollbackAssignmentHandler(parsedHook, contributorHandle, "Failed to assign issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir")
+
+		response := "Failed to assign issue. Failed to allot a timer for the contributor"
+		comment := github.IssueComment{Body: &response}
+
+		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
+
+		if err != nil {
+			globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
+				Str("repoName", parsedHook.Repository.FullName).
+				Int64("issueNum", parsedHook.Issue.Number).
+				Str("issueTitle", parsedHook.Issue.Title).
+				Msg("Could not Comment on Issue")
+		} else {
+			globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
+				Str("repoName", parsedHook.Repository.FullName).
+				Int64("issueNum", parsedHook.Issue.Number).
+				Str("issueTitle", parsedHook.Issue.Title).
+				Msg("Successfully Commented on Issue")
+		}
+
 		return
 	}
 
@@ -241,8 +259,6 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 			Str("contributor", contributorHandle).
 			Int("statusCode", response.StatusCode).
 			Msg("POST /register recieved")
-		errorMsg := fmt.Sprintf("Failed to assign issue. Failed to allot a timer for the contributor (%d). Contact @bwaklog @anirudhsudhir", response.StatusCode)
-		rollbackAssignmentHandler(parsedHook, contributorHandle, errorMsg)
 	} else {
 		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE")).
 			Str("contributor", contributorHandle).
@@ -332,7 +348,7 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("DEASSIGN_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
 
-		response := "Deassigned issue. Failed to delete timer for the contributor. Contact @bwaklog @anirudhsudhir"
+		response := "Failed to deassign issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -448,7 +464,7 @@ func withdrawIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("WITHDRAW_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
 
-		response := "Issue withdrawn. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
+		response := "Failed to withdraw issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -578,14 +594,6 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 			Int("statusCode", response.StatusCode).
 			Str("message", extendEventResponse.Message).
 			Msg("POST /extend recieved")
-		if response.StatusCode == http.StatusFailedDependency {
-			globals.AppState.ZeroLogger.Error().
-				Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
-				Str("assignee", parsedHook.Issue.Assignee.Login).
-				Msg("Timer expired for assignee, deassigning and assigning")
-			deassignIssue(parsedHook)
-			assignIssue(extendToAssign(commentCommand, parsedHook.Issue.Assignee.Login), parsedHook)
-		}
 	} else {
 		globals.AppState.ZeroLogger.Info().
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("EXTEND_ISSUE")).
@@ -612,61 +620,6 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 				Str("issueTitle", parsedHook.Issue.Title).
 				Msg("Successfully Commented on Issue")
 		}
-	}
-}
-
-func rollbackAssignmentHandler(parsedHook *ghwebhooks.IssueCommentPayload, contributorHandle string, errorMessage string) {
-	globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("ROLLBACK")).
-		Str("contributor", contributorHandle).
-		Msg("Rolling back assignment due to timer failure")
-
-	// Rollback DB assignment
-	dbSuccess, err := globals.AppState.DBManager.DeassignIssue(parsedHook.Issue.HTMLURL)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("ROLLBACK")).
-			Str("contributor", contributorHandle).
-			Msg("Failed to rollback DB assignment")
-	} else if !dbSuccess {
-		globals.AppState.ZeroLogger.Error().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("ROLLBACK")).
-			Str("contributor", contributorHandle).
-			Msg("Failed to rollback DB assignment, DB error")
-	}
-
-	// Rollback GitHub assignment
-	_, _, err = globals.AppState.RuntimeClient.Issues.RemoveAssignees(
-		context.TODO(),
-		parsedHook.Repository.Owner.Login,
-		parsedHook.Repository.Name,
-		int(parsedHook.Issue.Number),
-		[]string{contributorHandle},
-	)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("ROLLBACK").Str("GH_API")).
-			Str("contributor", contributorHandle).
-			Msg("Failed to rollback GitHub assignment")
-	}
-
-	// Notify user of failure
-	comment := github.IssueComment{Body: &errorMessage}
-	_, _, err = globals.AppState.RuntimeClient.Issues.CreateComment(
-		context.TODO(),
-		parsedHook.Repository.Owner.Login,
-		parsedHook.Repository.Name,
-		int(parsedHook.Issue.Number),
-		&comment,
-	)
-	if err != nil {
-		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("ROLLBACK")).
-			Str("repoName", parsedHook.Repository.FullName).
-			Int64("issueNum", parsedHook.Issue.Number).
-			Str("issueTitle", parsedHook.Issue.Title).
-			Msg("Could not comment on issue about assignment failure")
-	} else {
-		globals.AppState.ZeroLogger.Info().Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("ASSIGN_ISSUE").Str("ROLLBACK")).
-			Str("repoName", parsedHook.Repository.FullName).
-			Int64("issueNum", parsedHook.Issue.Number).
-			Str("issueTitle", parsedHook.Issue.Title).
-			Msg("Successfully commented on issue about assignment failure")
 	}
 }
 
