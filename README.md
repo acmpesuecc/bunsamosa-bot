@@ -23,10 +23,6 @@ webServerPort:
 dbPath:
 # Timer Service Webhook URL
 timerDaemonURL:
-# Maintainer Leads with @ for mentioning
-maintainer-leads:
-# Tech Leads with @ for mentioning
-tech-leads:
 ```
 
 3. Update `dev/init.sql` with the list of maintainers and contributors

@@ -107,8 +107,8 @@ func TimerHandler(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	commentBody := fmt.Sprintf("Hey @%s! The timer for the %s to work on the issue has finished, deassign and assign a new contributor or extend the current timer. Contact maintainer leads if inactive %s",
-		emitInterface.Commenter, contributorHandle, globals.AppState.MentionMaintainerLead)
+	commentBody := fmt.Sprintf("Hey @%s! The timer for the %s to work on the issue has finished, deassign and assign a new contributor or extend the current timer. Contact maintainer leads if inactive @DedLad @polarhive @achyuthcodes30",
+		emitInterface.Commenter, contributorHandle)
 	comment := github.IssueComment{Body: &commentBody}
 	_, _, err = globals.AppState.RuntimeClient.Issues.CreateComment(
 		context.TODO(),

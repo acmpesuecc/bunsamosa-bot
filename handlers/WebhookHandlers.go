@@ -232,7 +232,7 @@ func assignIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 			Msg("No response from the timer service")
 	}
 	if err != nil || response == nil {
-		response := "Assigned issue. Failed to allot a timer for the contributor @" + parsedHook.Sender.Login + " , Contact " + globals.AppState.MentionTechLead
+		response := "Assigned issue. Failed to allot a timer for the contributor @" + parsedHook.Sender.Login
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -348,7 +348,7 @@ func deassignIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Msg("No response from the timer service")
 	}
 	if err != nil || response == nil {
-		response := "Deassigned issue. Failed to delete timer for the contributor. @" + parsedHook.Sender.Login + " , Contact " + globals.AppState.MentionTechLead
+		response := "Deassigned issue. Failed to delete timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -464,7 +464,7 @@ func withdrawIssue(parsedHook *ghwebhooks.IssueCommentPayload) {
 			Array("scope", zerolog.Arr().Str("ISSUE_COMMENT_HANDLER").Str("WITHDRAW_ISSUE").Str("TIMER_DAEMON")).
 			Msg("No response from the timer service")
 
-		response := "Issue withdrawn. Failed to delete a timer for the contributor. @" + parsedHook.Sender.Login + " , Contact " + globals.AppState.MentionTechLead
+		response := "Issue withdrawn. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -556,7 +556,7 @@ func extendIssue(commentCommand string, parsedHook *ghwebhooks.IssueCommentPaylo
 			Msg("No response from the timer service")
 	}
 	if response == nil || err != nil {
-		response := "Failed to extend issue. Failed to allot a timer for the contributor. @" + parsedHook.Sender.Login + " , Contact " + globals.AppState.MentionTechLead
+		response := "Failed to extend issue. Failed to allot a timer for the contributor. Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &response}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -893,7 +893,7 @@ func manualAssignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 			Msg("No response from the timer service")
 	}
 	if response == nil || err != nil {
-		timerErrorMsg := "Failed to allot a timer for the contributor. @" + parsedHook.Sender.Login + " , Contact " + globals.AppState.MentionTechLead
+		timerErrorMsg := "Failed to allot a timer for the contributor @" + parsedHook.Assignee.Login
 		comment := github.IssueComment{Body: &timerErrorMsg}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
@@ -1013,7 +1013,7 @@ func manualDeassignHandler(parsedHook *ghwebhooks.IssuesPayload) {
 			Msg("No response from the timer service")
 	}
 	if response == nil || err != nil {
-		errorMessage := "Deassigned issue. Failed to delete timer for the contributor. @" + parsedHook.Sender.Login + " @" + parsedHook.Sender.Login + " , Contact " + globals.AppState.MentionTechLead
+		errorMessage := "Deassigned issue. Failed to delete timer for the contributor @" + parsedHook.Assignee.Login + ". Contact @bwaklog @anirudhsudhir"
 		comment := github.IssueComment{Body: &errorMessage}
 
 		_, _, err := globals.AppState.RuntimeClient.Issues.CreateComment(context.TODO(), parsedHook.Repository.Owner.Login, parsedHook.Repository.Name, int(parsedHook.Issue.Number), &comment)
