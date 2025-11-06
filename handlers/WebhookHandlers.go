@@ -675,7 +675,7 @@ func newPRCommentHandler(parsedHook *ghwebhooks.IssueCommentPayload) {
 	// parse the comment here to give a bounty
 	bounty, valid := parseBountyPoints(parsedHook.Comment.Body)
 
-	if !valid {
+	if !valid && strings.Contains(parsedHook.Comment.Body, "!bounty") {
 		globals.AppState.ZeroLogger.Error().Err(err).Array("scope", zerolog.Arr().Str("BOUNTY").Str("PR_COMMENT_HANDLER")).
 			Str("repoName", parsedHook.Repository.FullName).
 			Int64("prNum", parsedHook.Issue.Number).
