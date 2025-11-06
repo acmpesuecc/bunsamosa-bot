@@ -3,12 +3,21 @@ package handlers
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog"
 )
+
+// Function to check if a string is in an array
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
 
 // Default Issue Times
 const defaultAssignment = 45
@@ -18,7 +27,7 @@ const bountyPattern = `^!bounty\s+(\d+)$`
 const assignPattern = `^!assign\s+@(\S+)\s*(\d*)$`
 const deassignPattern = `^!deassign$`
 const withdrawPattern = `^!withdraw$`
-const extendPattern = `^!extend\s*(\d+)?$`
+const extendPattern = `^!extend(\s+\d+)$`
 
 // var commandRegex = regexp.MustCompile(`^!\w+`)
 var commandRegex = regexp.MustCompile(`^!.+`)
@@ -34,7 +43,7 @@ func getCommand(comment string, logger *zerolog.Logger) string {
 	matches := commandRegex.FindStringSubmatch(comment)
 	if len(matches) > 0 {
 		botCommand := strings.Trim(matches[0], " ")
-		logger.Info().Str("botCommand", botCommand).Msg("Initial bot command regex match")
+		logger.Info().Msgf("Initial bot command regex match: %s", botCommand)
 		return botCommand
 	} else {
 		return ""
@@ -73,11 +82,11 @@ func parseAssign(comment string, logger *zerolog.Logger) (string, int, bool) {
 		message := strings.Split(strings.Trim(matches[0], " "), " ")
 		var duration int
 		var err error
-		handle := matches[1]
+		handle := message[1]
 		fmt.Println(message)
 		// If time is defined
-		if len(matches) > 2 && matches[2] != "" {
-			durationStr := matches[2]
+		if len(message) > 2 {
+			durationStr := message[2]
 			duration, err = strconv.Atoi(durationStr)
 			logger.Info().Str("scope", "PARSE_ASSIGN").Str("contributor_handle", handle).Int("duration", duration).Msg("Successfully parsed `assign` comment")
 			return handle, duration, err == nil
@@ -98,22 +107,21 @@ func parseAssign(comment string, logger *zerolog.Logger) (string, int, bool) {
 func parseExtend(comment string) (int, bool) {
 	comment = strings.TrimLeft(comment, " ")
 	matches := extendRegex.FindStringSubmatch(comment)
-	if len(matches) == 0 {
+	if len(matches) > 0 {
+		message := strings.Split(strings.Trim(matches[0], " "), " ")
+		// If time is defined
+		if len(message) > 2 {
+			timeStr := strings.Trim(message[1], " ")
+			time, err := strconv.Atoi(timeStr)
+			return time, err == nil
+		} else {
+			// default time
+			return defaultExtension, true
+		}
+
+	} else {
 		return -1, false
 	}
-	// If time is defined
-	if len(matches) > 1 && matches[1] != "" {
-		timeStr := matches[1]
-		time, err := strconv.Atoi(timeStr)
-		if err != nil {
-			return -1, false
-		}
-		return time, true
-	} else {
-		// default time
-		return defaultExtension, true
-	}
-
 }
 
 // Function to check if a URL is a Pull Request URL
@@ -123,7 +131,7 @@ func isPullRequest(url string) bool {
 	// If we can verify that the second-last element is a string
 	// Then we can verify that the given URL is a pull request URL
 	parts := strings.Split(url, "/")
-	if slices.Contains(parts, "pulls") {
+	if contains(parts, "pulls") {
 		return true
 	} else {
 		return false
