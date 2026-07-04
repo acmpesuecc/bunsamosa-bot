@@ -12,7 +12,7 @@ var parseBountyTests = []parseBountyTest{
 	{comment: "!bounty 20", valid: true, bounty: 20},
 	{comment: " !bounty 20", valid: true, bounty: 20},
 	{comment: " !bounty 20\n", valid: false, bounty: 20},
-	{comment: "!bounty 30 @appy", valid: false, bounty: 30},
+	{comment: "!bounty 30 @username", valid: false, bounty: 30},
 	{comment: "!bounty", valid: false, bounty: -1},
 	{comment: "!bounty ", valid: false, bounty: -1},
 	{comment: "!bounty abcd", valid: false, bounty: -1},
